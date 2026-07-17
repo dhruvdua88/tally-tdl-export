@@ -28,9 +28,16 @@ untouched in `original/`.
 
 **Tally.ERP 9**: `F12 → Product & Features → F4 (Manage Local TDLs)` → add the path.
 
-> Output files are written to Tally's working / data folder (the folder Tally
-> starts from). Set the period with `F2` / `Alt+F2` before exporting — exports
-> honour the current company and active period.
+> **Create the folder `C:\TallyExport` before your first export.** All files are
+> written there. (A bare filename would land in Tally's own program folder,
+> which Windows protects — the file then silently disappears into a VirtualStore
+> copy. An explicit folder avoids that.)
+> To use a different folder, edit the `DDExportPath` default at the top of the
+> `.tdl` and keep the trailing backslash:
+> `[Variable: DDExportPath]  Default : "D:\MyExports\"`
+>
+> Set the period with `F2` / `Alt+F2` before exporting — exports honour the
+> current company and active period.
 
 You can load **both** files at once (their menu names and definitions don't clash).
 

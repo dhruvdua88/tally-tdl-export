@@ -62,6 +62,20 @@
     DDDateFlt  : ($$IsEmpty:##DDFromDate OR $Date >= ##DDFromDate) AND ($$IsEmpty:##DDToDate OR $Date <= ##DDToDate)
 
 ;; ------------------------------------------------- helper: CSV-escape text --
+;; ---------------------------------------------------- OUTPUT FOLDER ---------
+;; Where the exported files are written.
+;; Tally writes a bare filename into its own program folder (often
+;; C:\Program Files\...), which Windows protects - the file then either fails to
+;; appear or is hidden away in a VirtualStore copy. So we always write to an
+;; explicit, user-writable folder.
+;;
+;; >>> CREATE THIS FOLDER FIRST (once):  C:\TallyExport
+;; >>> To use a different folder, edit the Default line below. Keep the
+;;     trailing backslash.
+[Variable: DDExportPath]
+    Type    : String
+    Default : "C:\TallyExport\"
+
 [Function: CsvEsc]
     Parameter : pVal : String
     Returns   : String
@@ -130,8 +144,11 @@
     Variable : LDuty  : String : ""
     Variable : LGstin : String : ""
 
-    001 : Delete File     : "LedgerVoucher.csv"
-    010 : OPEN FILE       : "LedgerVoucher.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "LedgerVoucher.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
 
     100 : WALK COLLECTION : XLVoucher
@@ -180,8 +197,11 @@
     Variable : LGstin : String : ""
     Variable : MaxAlt : Number : 0
 
-    001 : Delete File     : "LedgerVoucher.csv"
-    010 : OPEN FILE       : "LedgerVoucher.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "LedgerVoucher.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
 
     100 : WALK COLLECTION : XLVoucherDelta
@@ -223,8 +243,9 @@
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
     199 : CLOSE TARGET FILE
-    200 : Delete File     : "LedgerVoucher.maxalter.txt"
-    210 : OPEN FILE       : "LedgerVoucher.maxalter.txt" : Text : Write : ASCII
+    200 : SET : F : ##DDExportPath + "LedgerVoucher.maxalter.txt"
+    201 : Delete File : ##F
+    210 : OPEN FILE       : ##F : Text : Write : ASCII
     220 : WRITE FILE LINE : $$String:##MaxAlt
     230 : CLOSE TARGET FILE
 
@@ -238,8 +259,11 @@
     Variable : Taxb : String : ""
     Variable : Uom  : String : ""
 
-    001 : Delete File     : "InventoryVoucher.csv"
-    010 : OPEN FILE       : "InventoryVoucher.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "InventoryVoucher.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,MasterID,AlterID,VoucherNumber,VoucherType,PartyLedger,StockItem,HSNCode,HSNDesc,GSTRate,Taxability,BaseUnit,BilledQty,ActualQty,Rate,Amount,AddlAmount,Discount,Godown,OrderNo,OrderDueDate,TrackingNo,Batches"
 
     100 : WALK COLLECTION : XSVoucher
@@ -281,8 +305,11 @@
 
     Variable : Line : String : ""
 
-    001 : Delete File     : "Billwise.csv"
-    010 : OPEN FILE       : "Billwise.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "Billwise.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,BillRef,BillType,BillAmount,DrCr,CreditPeriod,BillDate"
 
     100 : WALK COLLECTION : XBill
@@ -307,8 +334,11 @@
 
     Variable : Line : String : ""
 
-    001 : Delete File     : "LedgerList.csv"
-    010 : OPEN FILE       : "LedgerList.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "LedgerList.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Name,Parent,PrimaryGroup,IsBillWise,IsCostCentre,GSTIN,GSTRegType,GSTSupplyType,PAN,Address,State,Country,Pincode,Contact,Phone,Mobile,Email,BankName,BankAcNo,IFSC,CreditPeriod,OpeningBalance,ClosingBalance,CashInFlow,CashOutFlow"
 
     100 : WALK COLLECTION : XLedger
@@ -346,8 +376,11 @@
 
     Variable : Line : String : ""
 
-    001 : Delete File     : "CostCentre.csv"
-    010 : OPEN FILE       : "CostCentre.csv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "CostCentre.csv"
+    002 : Delete File : ##F
+    010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,CostCategory,CostCentre,Amount,DrCr"
 
     100 : WALK COLLECTION : XCC

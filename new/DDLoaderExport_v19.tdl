@@ -55,6 +55,20 @@
 
 ;; ------------------------------------------ type formatters (loader-exact) ---
 ;; text: strip TAB/CR/LF -> space (loader cleans embedded separators)
+;; ---------------------------------------------------- OUTPUT FOLDER ---------
+;; Where the exported files are written.
+;; Tally writes a bare filename into its own program folder (often
+;; C:\Program Files\...), which Windows protects - the file then either fails to
+;; appear or is hidden away in a VirtualStore copy. So we always write to an
+;; explicit, user-writable folder.
+;;
+;; >>> CREATE THIS FOLDER FIRST (once):  C:\TallyExport
+;; >>> To use a different folder, edit the Default line below. Keep the
+;;     trailing backslash.
+[Variable: DDExportPath]
+    Type    : String
+    Default : "C:\TallyExport\"
+
 [Function: LdrT]
     Parameter : v : String
     Returns   : String
@@ -104,8 +118,11 @@
 [Function: Export Ldr Group]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "mst_group.tsv"
-    010 : OPEN FILE : "mst_group.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_group.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"primary_group"+@@LdrTab+"is_revenue"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"is_reserved"+@@LdrTab+"affects_gross_profit"+@@LdrTab+"sort_position"
     100 : WALK COLLECTION : Ldr_Group
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -125,8 +142,11 @@
 [Function: Export Ldr Ledger]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "mst_ledger.tsv"
-    010 : OPEN FILE : "mst_ledger.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_ledger.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"alias"+@@LdrTab+"description"+@@LdrTab+"notes"+@@LdrTab+"is_revenue"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"opening_balance"+@@LdrTab+"closing_balance"+@@LdrTab+"mailing_name"+@@LdrTab+"mailing_address"+@@LdrTab+"mailing_state"+@@LdrTab+"mailing_country"+@@LdrTab+"mailing_pincode"+@@LdrTab+"email"+@@LdrTab+"mobile"+@@LdrTab+"it_pan"+@@LdrTab+"gstn"+@@LdrTab+"gst_registration_type"+@@LdrTab+"gst_supply_type"+@@LdrTab+"gst_duty_head"+@@LdrTab+"bank_account_holder"+@@LdrTab+"bank_account_number"+@@LdrTab+"bank_ifsc"+@@LdrTab+"bank_swift"+@@LdrTab+"bank_name"+@@LdrTab+"bank_branch"+@@LdrTab+"bill_credit_period"
     100 : WALK COLLECTION : Ldr_Ledger
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -170,8 +190,11 @@
 ;; ================================================= MASTER: mst_vouchertype ===
 [Function: Export Ldr VoucherType]
     Variable : L : String
-    001 : Delete File : "mst_vouchertype.tsv"
-    010 : OPEN FILE : "mst_vouchertype.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_vouchertype.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"numbering_method"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"affects_stock"
     100 : WALK COLLECTION : Ldr_VchType
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -187,8 +210,11 @@
 [Function: Export Ldr StockItem]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "mst_stock_item.tsv"
-    010 : OPEN FILE : "mst_stock_item.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_stock_item.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"category"+@@LdrTab+"alias"+@@LdrTab+"description"+@@LdrTab+"notes"+@@LdrTab+"part_number"+@@LdrTab+"uom"+@@LdrTab+"alternate_uom"+@@LdrTab+"conversion"+@@LdrTab+"opening_balance"+@@LdrTab+"opening_rate"+@@LdrTab+"opening_value"+@@LdrTab+"closing_balance"+@@LdrTab+"closing_rate"+@@LdrTab+"closing_value"+@@LdrTab+"costing_method"+@@LdrTab+"gst_type_of_supply"+@@LdrTab+"gst_hsn_code"+@@LdrTab+"gst_hsn_description"+@@LdrTab+"gst_rate"+@@LdrTab+"gst_taxability"
     100 : WALK COLLECTION : Ldr_StockItem
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -225,8 +251,11 @@
 [Function: Export Ldr Godown]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "mst_godown.tsv"
-    010 : OPEN FILE : "mst_godown.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_godown.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"address"
     100 : WALK COLLECTION : Ldr_Godown
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -241,8 +270,11 @@
 ;; ================================================ MASTER: mst_cost_category ===
 [Function: Export Ldr CostCategory]
     Variable : L : String
-    001 : Delete File : "mst_cost_category.tsv"
-    010 : OPEN FILE : "mst_cost_category.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_cost_category.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"allocate_revenue"+@@LdrTab+"allocate_non_revenue"
     100 : WALK COLLECTION : Ldr_CostCat
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -256,8 +288,11 @@
 [Function: Export Ldr CostCentre]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "mst_cost_centre.tsv"
-    010 : OPEN FILE : "mst_cost_centre.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "mst_cost_centre.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"category"
     100 : WALK COLLECTION : Ldr_CostCtr
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
@@ -272,8 +307,11 @@
 [Function: Export Ldr Voucher]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "trn_voucher.tsv"
-    010 : OPEN FILE : "trn_voucher.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_voucher.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"date"+@@LdrTab+"voucher_type"+@@LdrTab+"voucher_number"+@@LdrTab+"reference_number"+@@LdrTab+"reference_date"+@@LdrTab+"narration"+@@LdrTab+"party_name"+@@LdrTab+"place_of_supply"+@@LdrTab+"is_invoice"+@@LdrTab+"is_accounting_voucher"+@@LdrTab+"is_inventory_voucher"+@@LdrTab+"is_order_voucher"
     100 : WALK COLLECTION : Ldr_Vch
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrD:$Date
@@ -299,8 +337,11 @@
 [Function: Export Ldr Accounting]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "trn_accounting.tsv"
-    010 : OPEN FILE : "trn_accounting.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_accounting.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"amount"+@@LdrTab+"amount_forex"+@@LdrTab+"currency"
     100 : WALK COLLECTION : Ldr_Acc
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
@@ -317,8 +358,11 @@
 [Function: Export Ldr Inventory]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "trn_inventory.tsv"
-    010 : OPEN FILE : "trn_inventory.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_inventory.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"item"+@@LdrTab+"quantity"+@@LdrTab+"rate"+@@LdrTab+"amount"+@@LdrTab+"additional_amount"+@@LdrTab+"discount_amount"+@@LdrTab+"godown"+@@LdrTab+"tracking_number"+@@LdrTab+"order_number"+@@LdrTab+"order_duedate"
     100 : WALK COLLECTION : Ldr_Inv
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$StockItemName
@@ -340,8 +384,11 @@
 ;; ================================================ TRANS: trn_cost_centre =====
 [Function: Export Ldr CostCentreTxn]
     Variable : L : String
-    001 : Delete File : "trn_cost_centre.tsv"
-    010 : OPEN FILE : "trn_cost_centre.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_cost_centre.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"costcentre"+@@LdrTab+"amount"
     100 : WALK COLLECTION : Ldr_CC
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
@@ -355,8 +402,11 @@
 [Function: Export Ldr Bill]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "trn_bill.tsv"
-    010 : OPEN FILE : "trn_bill.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_bill.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"name"+@@LdrTab+"amount"+@@LdrTab+"billtype"+@@LdrTab+"bill_credit_period"
     100 : WALK COLLECTION : Ldr_Bill
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
@@ -372,8 +422,11 @@
 ;; ======================================================= TRANS: trn_bank =====
 [Function: Export Ldr Bank]
     Variable : L : String
-    001 : Delete File : "trn_bank.tsv"
-    010 : OPEN FILE : "trn_bank.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_bank.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"transaction_type"+@@LdrTab+"instrument_date"+@@LdrTab+"instrument_number"+@@LdrTab+"bank_name"+@@LdrTab+"amount"+@@LdrTab+"bankers_date"
     100 : WALK COLLECTION : Ldr_Bank
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
@@ -391,8 +444,11 @@
 [Function: Export Ldr Batch]
     Variable : L : String
     Variable : c : String
-    001 : Delete File : "trn_batch.tsv"
-    010 : OPEN FILE : "trn_batch.tsv" : Text : Write : ASCII
+    Variable : F : String
+
+    001 : SET : F : ##DDExportPath + "trn_batch.tsv"
+    002 : Delete File : ##F
+    010 : OPEN FILE : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "guid"+@@LdrTab+"item"+@@LdrTab+"name"+@@LdrTab+"quantity"+@@LdrTab+"amount"+@@LdrTab+"godown"+@@LdrTab+"destination_godown"+@@LdrTab+"tracking_number"
     100 : WALK COLLECTION : Ldr_Batch
     110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$StockItemName

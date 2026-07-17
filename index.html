@@ -351,8 +351,8 @@
         <div class="step reveal d1">
           <div class="n">1</div>
           <div>
-            <h4>Download &amp; save the file</h4>
-            <p>Click a <b>Download</b> button above and save the <kbd>.tdl</kbd> file somewhere you'll remember, for example your Desktop or a folder called <b>Tally TDL</b>.</p>
+            <h4>Download the file, and make a folder for your exports</h4>
+            <p>Click a <b>Download</b> button above and save the <kbd>.tdl</kbd> file somewhere you'll remember, for example your Desktop. Then create a folder called <kbd>C:\TallyExport</kbd> — that is where your exported files will appear.</p>
           </div>
         </div>
         <div class="step reveal d2">
@@ -373,13 +373,13 @@
           <div class="n">4</div>
           <div>
             <h4>Export from the main menu</h4>
-            <p>Back on the <b>Gateway of Tally</b> you'll see a new item,<b>DD Data Export</b>. Open it, choose what to export, and your file is written to Tally's folder. Open it in Excel. Done.</p>
+            <p>Back on the <b>Gateway of Tally</b> you'll see a new item, <b>DD Data Export</b>. Open it and choose what to export. Your file appears in <kbd>C:\TallyExport</kbd>. Double-click it to open in Excel. Done.</p>
           </div>
         </div>
       </div>
       <div class="note">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-        <div><b>Tip:</b> set your company period first with <kbd>Alt</kbd>+<kbd>F2</kbd>,the export covers exactly the dates you choose. Files are saved in the folder Tally opens from.</div>
+        <div><b>Tip:</b> set your company period first with <kbd>Alt</kbd>+<kbd>F2</kbd>, so the export covers exactly the dates you choose. Every file is saved into <kbd>C:\TallyExport</kbd>, so create that folder before your first export.</div>
       </div>
     </div>
   </section>
@@ -428,7 +428,7 @@
           <summary>Where are the exported files saved?
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
           </summary>
-          <p>In the folder Tally starts from (its application/data folder). After exporting, open that folder and you'll find files like <kbd>LedgerVoucher.csv</kbd>,double-click to open in Excel.</p>
+          <p>In <kbd>C:\TallyExport</kbd>. Create that folder once, before your first export, then look inside it for files like <kbd>LedgerVoucher.csv</kbd> and double-click to open in Excel. Want a different folder? Open the <kbd>.tdl</kbd> in Notepad and edit the <kbd>DDExportPath</kbd> line near the top (keep the trailing backslash).</p>
         </details>
         <details>
           <summary>I have lakhs of vouchers, will it handle that?
