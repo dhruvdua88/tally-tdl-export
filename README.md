@@ -10,7 +10,7 @@ Two ready-to-load add-ons (pick per need):
 
 | File | What you get | Use when |
 |---|---|---|
-| **`new/DDVoucherExport_v17.tdl`** | Clean **CSV** exports via a *DD Data Export* menu: Accounting, Accounting-Delta, Inventory, Bill-wise, Cost-Centre, Ledger Master — with headers, Dr/Cr, GST classification, optional AlterID delta + date-range scope. | You want readable CSVs to open in Excel / feed a recon. |
+| **`new/DDVoucherExport_v20.tdl`** | Clean **CSV** exports via a *DD Data Export* menu: Accounting, Accounting-Delta, Inventory, Bill-wise, Cost-Centre, Ledger Master — with headers, Dr/Cr, GST classification, optional AlterID delta + date-range scope. | You want readable CSVs to open in Excel / feed a recon. |
 | **`new/DDLoaderExport_v19.tdl`** | **14 tables** (7 `mst_*` + 7 `trn_*`) exported as `.tsv` in the **exact format of [tally-database-loader](https://github.com/dhananjay1405/tally-database-loader)** (same column names, order, value-transforms, GUID linkage). | You want a normalized, DB-loadable dataset / loader-compatible files without running the Node loader. |
 
 Everything is a **fork** of an original working TDL — the original is kept
@@ -23,7 +23,7 @@ untouched in `original/`.
 **TallyPrime**
 1. `F1 (Help) → TDL & Add-On → F4 (Manage Local TDLs)`.
 2. *Load selected TDL files on startup* → **Yes**.
-3. Add the full path to the `.tdl` you want (e.g. `DDVoucherExport_v17.tdl` or `DDLoaderExport_v19.tdl`) → **Accept**.
+3. Add the full path to the `.tdl` you want (e.g. `DDVoucherExport_v20.tdl` or `DDLoaderExport_v19.tdl`) → **Accept**.
 4. A new item appears on the **Gateway of Tally** (*DD Data Export* / *DD Loader Export*).
 
 **Tally.ERP 9**: `F12 → Product & Features → F4 (Manage Local TDLs)` → add the path.
@@ -45,9 +45,14 @@ You can load **both** files at once (their menu names and definitions don't clas
 
 ---
 
-## A. `DDVoucherExport_v17.tdl` — CSV exports
+## A. `DDVoucherExport_v20.tdl` — CSV exports
 
-**Gateway of Tally → DD Data Export** (key `D`) → submenu:
+**Gateway of Tally → DD Data Export** (key `D`) → submenu. v20 also:
+- **creates the export folder** if missing (`$$IsDirectory` + `MAKE DIR`) and says so loudly if it can't — `OPEN FILE` creates a missing *file* but not a missing *folder*, and fails silently, which is why an export could produce nothing;
+- **shows the exact file it wrote** and offers to **open it in Excel** (`BROWSE URL EX`);
+- **Set Export Folder** (key `F`) lets you type a path (TDL has no folder-browse dialog).
+
+Submenu:
 
 | Item (key) | Output | One row per |
 |---|---|---|
@@ -107,7 +112,7 @@ one line.
 
 ```
 original/    original.tdl                     (untouched source)
-new/         DDVoucherExport_v17.tdl          (CSV exports — recommended)
+new/         DDVoucherExport_v20.tdl          (CSV exports — recommended)
              DDLoaderExport_v19.tdl           (tally-database-loader format)
              VchDumpReport_v18.tdl            (engine-export prototype, large data)
              FieldProbe_v10.tdl               (one-time field verifier)
