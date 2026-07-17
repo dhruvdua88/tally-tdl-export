@@ -1,0 +1,119 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; VchDumpReport  -  v18  (LARGE-DATA fast path: NATIVE REPORT EXPORT engine)
+;;   Fork-family prototype; original untouched.
+;;
+;; WHY: research verdict (docs/METHODS_LARGE_DATA.md) ranks export methods:
+;;   1 HTTP-XML pull TYPE=Collection (external, batched)  <- fastest for 1M
+;;   2 HTTP-XML TYPE=Data
+;;   3 IN-TALLY native Report export via EXPORT action     <- THIS FILE
+;;   4 TDL Function + WRITE FILE LINE loop (v1-v17)         <- slower at scale
+;;   5 ODBC
+;; The export ENGINE streams the whole report in one compiled pass (flat RAM,
+;; no per-row interpreter dispatch), so for 100k+ rows it beats the v1-v17
+;; WRITE FILE LINE loop while keeping the same menu UX.
+;;
+;; Perf choices for scale (differ from v5+):
+;;   * NO Keep Source (retaining parent objects blows memory at 1M rows).
+;;   * NO cross-object $..:Ledger:$Name lookups (per-row resolution cost) - the
+;;     ledger-entry grain is reached by walking the route in ONE collection.
+;;   * Server-side Filter drops cancelled/optional before render.
+;;
+;; Output: VchDumpReport.csv (comma-delimited), one row per ledger entry.
+;;
+;; TRUNCATION NOTE: report CSV export can clip a field to its on-screen width on
+;; some builds. If you see clipped Narration/Names, change SVExportFormat (line
+;; 020) to "XML (Data Interchange)" + filename .xml -> XML has no width limit;
+;; open in Excel via Data > From XML, or flatten. [verify] on your build.
+;; ============================================================================
+
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Voucher (Report/fast) : X : Call : DDExportVchReport
+
+;; ---------------- trigger: set export static vars, fire EXPORT action -------
+[Function: DDExportVchReport]
+    010 : SET    : SVExportFormat   : $$SysName:ASCIICommaDelimited   ;; CSV; XML = $$SysName:XMLFormat
+    020 : SET    : SVExportFileName : "VchDumpReport.csv"
+    ;; SVFromDate/SVToDate default to the active (F2) period; override if needed:
+    ;; 030 : SET : SVFromDate : $$Date:"1-Apr-2024"
+    ;; 040 : SET : SVToDate   : $$Date:"31-Mar-2025"
+    100 : EXPORT : VchDumpRep
+
+;; ---------------- report / form / part (engine-streamed) --------------------
+[Report: VchDumpRep]
+    Form : VchDumpForm
+
+[Form: VchDumpForm]
+    Part      : VchDumpPart
+    ;; clean data-only output (no titles/company band)
+    Space Top    : 0
+    Space Bottom : 0
+
+[Part: VchDumpPart]
+    Lines    : VchDumpHdr, VchDumpLine
+    Repeat   : VchDumpLine : VchEntryColl     ;; one iteration per ledger entry
+    Scrolled : Vertical
+
+;; header row (printed once)
+[Line: VchDumpHdr]
+    Fields : hDate, hEffDate, hGuid, hMID, hAID, hVchNo, hVchType, hRef, hRefDate, hParty, hPOS, hCancel, hOpt, hNarr, hLedger, hAmount, hDrCr
+
+;; data row (repeats over VchEntryColl)
+[Line: VchDumpLine]
+    Fields : fDate, fEffDate, fGuid, fMID, fAID, fVchNo, fVchType, fRef, fRefDate, fParty, fPOS, fCancel, fOpt, fNarr, fLedger, fAmount, fDrCr
+
+;; ---- header field literals ----
+[Field: hDate]    : Set as : "Date"
+[Field: hEffDate] : Set as : "EffectiveDate"
+[Field: hGuid]    : Set as : "GUID"
+[Field: hMID]     : Set as : "MasterID"
+[Field: hAID]     : Set as : "AlterID"
+[Field: hVchNo]   : Set as : "VoucherNumber"
+[Field: hVchType] : Set as : "VoucherType"
+[Field: hRef]     : Set as : "Reference"
+[Field: hRefDate] : Set as : "ReferenceDate"
+[Field: hParty]   : Set as : "PartyLedger"
+[Field: hPOS]     : Set as : "PlaceOfSupply"
+[Field: hCancel]  : Set as : "Cancelled"
+[Field: hOpt]     : Set as : "Optional"
+[Field: hNarr]    : Set as : "Narration"
+[Field: hLedger]  : Set as : "LedgerName"
+[Field: hAmount]  : Set as : "Amount"
+[Field: hDrCr]    : Set as : "DrCr"
+
+;; ---- data fields (current object = a ledger entry; parent voucher methods
+;;      were FETCHed onto it by VchEntryColl, so $Date etc. resolve directly) ----
+[Field: fDate]    : Set as : $$String:$Date:UniversalDate
+[Field: fEffDate] : Set as : $$String:$EffectiveDate:UniversalDate
+[Field: fGuid]    : Set as : $Guid
+[Field: fMID]     : Set as : $MasterID
+[Field: fAID]     : Set as : $AlterID
+[Field: fVchNo]   : Set as : $VoucherNumber
+[Field: fVchType] : Set as : $VoucherTypeName
+[Field: fRef]     : Set as : $Reference
+[Field: fRefDate] : Set as : $$String:$ReferenceDate:UniversalDate
+[Field: fParty]   : Set as : $PartyLedgerName
+[Field: fPOS]     : Set as : $PlaceOfSupply
+[Field: fCancel]  : Set as : $IsCancelled
+[Field: fOpt]     : Set as : $IsOptional
+[Field: fNarr]    : Set as : $Narration
+[Field: fLedger]  : Set as : $LedgerName
+[Field: fAmount]  : Set as : $$String:$$Number:$Amount
+[Field: fDrCr]    : Set as : if $IsDeemedPositive then "Dr" else "Cr"
+
+;; ---------------- collections (NO Keep Source; single-pass route walk) ------
+[System: Formula]
+    fActiveVch : NOT $IsCancelled AND NOT $IsOptional
+
+[Collection: VchHeadColl]
+    Type   : Voucher
+    Filter : fActiveVch
+
+;; flatten to one object per ledger entry; FETCH pulls parent + entry methods
+[Collection: VchEntryColl]
+    Source Collection : VchHeadColl
+    Walk   : All Ledger Entries
+    Fetch  : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch  : Reference, ReferenceDate, PartyLedgerName, PlaceOfSupply, IsCancelled, IsOptional, Narration
+    Fetch  : LedgerName, Amount, IsDeemedPositive

@@ -1,0 +1,78 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; CostCentreExport  -  v14  (FAST cost-centre allocation CSV)
+;;   Fork of the original TDL; original kept untouched.
+;;
+;; The accounting export flattens cost centres to NAMES ONLY. v14 explodes to
+;; ONE ROW PER COST-CENTRE ALLOCATION with the cost CATEGORY, the amount and
+;; full voucher + ledger context -> cost-centre / department / project costing
+;; and category-wise analysis.
+;;
+;; Grain: Voucher -> All Ledger Entries -> Category Allocations ->
+;;        Cost Centre Allocations  (4-level walk).
+;;
+;; File produced (Tally app / data folder):
+;;   Menu > Export Cost-Centre CSV (fast)  -> CostCentre.csv
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Cost-Centre CSV (fast) : X : CALL : Export CostCentre CSV
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; -------------------------------------------- main export (one row / alloc) --
+[Function: Export CostCentre CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "CostCentre.csv"
+    010 : OPEN FILE       : "CostCentre.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,CostCategory,CostCentre,Amount,DrCr"
+
+    100 : WALK COLLECTION : XCC
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    113 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$Category + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
+    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr")
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: XCCVoucher]
+    Type        : Voucher
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Keep Source : Yes
+
+[Collection: XCCLE]
+    Source Collection : XCCVoucher
+    Walk        : All Ledger Entries
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Keep Source : Yes
+
+[Collection: XCCCat]
+    Source Collection : XCCLE
+    Walk        : Category Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Fetch       : Category
+    Keep Source : Yes
+
+[Collection: XCC]
+    Source Collection : XCCCat
+    Walk        : Cost Centre Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Fetch       : Category
+    Fetch       : Name, Amount
+    Keep Source : Yes

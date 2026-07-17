@@ -1,0 +1,74 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; BillwiseExport  -  v11  (FAST bill-wise allocation CSV)
+;;   Fork of the original TDL; original kept untouched.
+;;
+;; The accounting export flattens bill refs to NAMES ONLY (via $$FullList) - no
+;; amount, no type - useless for receivables/payables aging. v11 explodes to
+;; ONE ROW PER BILL ALLOCATION with full voucher + ledger context and the
+;; allocation amount / type / credit period. Feeds an outstanding-bills / aging
+;; report keyed by (LedgerName, BillRef).
+;;
+;; Grain: Voucher -> All Ledger Entries -> Bill Allocations (3-level walk).
+;;
+;; File produced (Tally app / data folder):
+;;   Menu > Export Bill-wise CSV (fast)  -> Billwise.csv
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Bill-wise CSV (fast) : X : CALL : Export Billwise CSV
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; -------------------------------------------- main export (one row / bill) --
+[Function: Export Billwise CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "Billwise.csv"
+    010 : OPEN FILE       : "Billwise.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,BillRef,BillType,BillAmount,DrCr,CreditPeriod,BillDate"
+
+    100 : WALK COLLECTION : XBill
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    113 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$BillType + ","
+    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr") + ","
+    120 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
+    121 :   SET : Line : ##Line + $$String:$BillDate:UniversalDate
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: XBillVoucher]
+    Type        : Voucher
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Keep Source : Yes
+
+[Collection: XBillLE]
+    Source Collection : XBillVoucher
+    Walk        : All Ledger Entries
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Fetch       : LedgerName
+    Keep Source : Yes
+
+[Collection: XBill]
+    Source Collection : XBillLE
+    Walk        : Bill Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Fetch       : LedgerName
+    Fetch       : Name, BillType, Amount, BillCreditPeriod, BillDate
+    Keep Source : Yes

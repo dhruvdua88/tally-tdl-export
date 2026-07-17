@@ -1,0 +1,421 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; DDVoucherExport  -  v17  (DEFINITIVE consolidated, RECOMMENDED single file)
+;;   Fork of the original TDL; original kept untouched. Supersedes v8/12/15/16.
+;;   v17 = v16 (date-range scope) with submenu items on the PROVEN
+;;   "Key Item + key + CALL : Function" action pattern (the plain
+;;   "Item : Call" used in v8-v16 was an unverified menu-item action).
+;;   Access keys: D opens the menu; A/E/I/B/C/L run the six exports.
+;;
+;; One .tdl. Adds a single "DD Data Export" item to the Gateway of Tally that
+;; opens a sub-menu with SIX fast exports (best of v5-v14):
+;;   1 Accounting Vouchers (CSV)          -> LedgerVoucher.csv   (all header+LE
+;;       fields, GST/ledger classification, bank, bill, cost-centre, Dr/Cr)
+;;   2 Accounting Vouchers - Delta (CSV)  -> LedgerVoucher.csv + .maxalter.txt
+;;       (only vouchers with AlterID > ##DDFromAlterID; 0 = full)
+;;   3 Inventory Vouchers (CSV)           -> InventoryVoucher.csv (stock lines +
+;;       HSN/GST-rate from item master + batches)
+;;   4 Bill-wise (CSV)                    -> Billwise.csv (one row per bill ref
+;;       with amount/type/credit-period -> aging)
+;;   5 Cost-Centre (CSV)                  -> CostCentre.csv (one row per cost-
+;;       centre allocation: category/centre/amount -> costing)
+;;   6 Ledger Master (CSV)                -> LedgerList.csv (25 master cols)
+;;
+;; FAST path throughout: WRITE FILE LINE -> ASCII CSV, Keep Source + collection-
+;; level Fetch, shared CsvEsc. No Is ODBC Table, no WRITE CELL. Honours current
+;; company + active period (F2). Cross-object master fields staged into temp
+;; vars (avoids ':' arg-split); one action per numbered line.
+;; ============================================================================
+
+;; ------------------------------------------------------------ Menu + submenu -
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : DD Data Export : D : Menu : DD Export Menu
+
+;; Submenu items use the PROVEN "Key Item + <key> + CALL : <Function>" pattern
+;; (same action form the original TDL used at Gateway level). Plain
+;; "Item : Call" in a custom menu is not a verified menu-item action.
+[Menu: DD Export Menu]
+    Add : Key Item : Accounting Vouchers (CSV)         : A : Call : Export Voucher CSV
+    Add : Key Item : Accounting Vouchers - Delta (CSV) : E : Call : Export Voucher CSV Delta
+    Add : Key Item : Inventory Vouchers (CSV)          : I : Call : Export Inventory CSV
+    Add : Key Item : Bill-wise (CSV)                   : B : Call : Export Billwise CSV
+    Add : Key Item : Cost-Centre (CSV)                 : C : Call : Export CostCentre CSV
+    Add : Key Item : Ledger Master (CSV)               : L : Call : Export Ledger Master CSV
+
+;; -------------------------------------------------- var + filter (delta) ----
+[Variable: DDFromAlterID]
+    Type    : Number
+    Default : 0
+
+;; ------------------------------------------ vars + filter (date-range) ------
+;; Optional programmatic period scope. Both empty (default) => NO restriction
+;; (the F2 active period still applies). Automation: SET DDFromDate / DDToDate.
+[Variable: DDFromDate]
+    Type    : Date
+
+[Variable: DDToDate]
+    Type    : Date
+
+[System: Formula]
+    DDDeltaFlt : $AlterID > ##DDFromAlterID
+    DDDateFlt  : ($$IsEmpty:##DDFromDate OR $Date >= ##DDFromDate) AND ($$IsEmpty:##DDToDate OR $Date <= ##DDToDate)
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; ============================================ FUNCTION 1: Accounting Vouchers =
+[Function: Export Voucher CSV]
+
+    Variable : Line   : String : ""
+    Variable : LGroup : String : ""
+    Variable : LDuty  : String : ""
+    Variable : LGstin : String : ""
+
+    001 : Delete File     : "LedgerVoucher.csv"
+    010 : OPEN FILE       : "LedgerVoucher.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
+
+    100 : WALK COLLECTION : XLVoucher
+    105 :   SET : LGroup : $Parent:Ledger:$LedgerName
+    106 :   SET : LDuty  : $GSTDutyHead:Ledger:$LedgerName
+    107 :   SET : LGstin : $PartyGSTIN:Ledger:$LedgerName
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$String:$EffectiveDate:UniversalDate + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    113 :   SET : Line : ##Line + $$String:$MasterID + ","
+    114 :   SET : Line : ##Line + $$String:$AlterID + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    117 :   SET : Line : ##Line + $$String:$IsInvoice + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:$EnteredBy + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$Reference + ","
+    120 :   SET : Line : ##Line + $$String:$ReferenceDate:UniversalDate + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:$PartyGSTIN + ","
+    123 :   SET : Line : ##Line + $$CsvEsc:$PlaceOfSupply + ","
+    124 :   SET : Line : ##Line + $$String:$IsCancelled + ","
+    125 :   SET : Line : ##Line + $$String:$IsOptional + ","
+    126 :   SET : Line : ##Line + $$CsvEsc:$Narration + ","
+    127 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    128 :   SET : Line : ##Line + $$CsvEsc:##LGroup + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:##LDuty + ","
+    130 :   SET : Line : ##Line + $$CsvEsc:##LGstin + ","
+    131 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    132 :   SET : Line : ##Line + (if $IsDeemedPositive then "Dr" else "Cr") + ","
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BillAllocations:$Name + ","
+    134 :   SET : Line : ##Line + $$CsvEsc:$$FullList:CostCentreAllocations:$Name + ","
+    135 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$TransactionType + ","
+    136 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentNumber + ","
+    137 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentDate + ","
+    138 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$BankName
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ====================================== FUNCTION 2: Accounting Vouchers Delta =
+[Function: Export Voucher CSV Delta]
+
+    Variable : Line   : String : ""
+    Variable : LGroup : String : ""
+    Variable : LDuty  : String : ""
+    Variable : LGstin : String : ""
+    Variable : MaxAlt : Number : 0
+
+    001 : Delete File     : "LedgerVoucher.csv"
+    010 : OPEN FILE       : "LedgerVoucher.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
+
+    100 : WALK COLLECTION : XLVoucherDelta
+    101 :   IF   : $AlterID > ##MaxAlt
+    102 :     SET : MaxAlt : $$Number:$AlterID
+    103 :   END IF
+    105 :   SET : LGroup : $Parent:Ledger:$LedgerName
+    106 :   SET : LDuty  : $GSTDutyHead:Ledger:$LedgerName
+    107 :   SET : LGstin : $PartyGSTIN:Ledger:$LedgerName
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$String:$EffectiveDate:UniversalDate + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    113 :   SET : Line : ##Line + $$String:$MasterID + ","
+    114 :   SET : Line : ##Line + $$String:$AlterID + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    117 :   SET : Line : ##Line + $$String:$IsInvoice + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:$EnteredBy + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$Reference + ","
+    120 :   SET : Line : ##Line + $$String:$ReferenceDate:UniversalDate + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:$PartyGSTIN + ","
+    123 :   SET : Line : ##Line + $$CsvEsc:$PlaceOfSupply + ","
+    124 :   SET : Line : ##Line + $$String:$IsCancelled + ","
+    125 :   SET : Line : ##Line + $$String:$IsOptional + ","
+    126 :   SET : Line : ##Line + $$CsvEsc:$Narration + ","
+    127 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    128 :   SET : Line : ##Line + $$CsvEsc:##LGroup + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:##LDuty + ","
+    130 :   SET : Line : ##Line + $$CsvEsc:##LGstin + ","
+    131 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    132 :   SET : Line : ##Line + (if $IsDeemedPositive then "Dr" else "Cr") + ","
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BillAllocations:$Name + ","
+    134 :   SET : Line : ##Line + $$CsvEsc:$$FullList:CostCentreAllocations:$Name + ","
+    135 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$TransactionType + ","
+    136 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentNumber + ","
+    137 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentDate + ","
+    138 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$BankName
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+    200 : Delete File     : "LedgerVoucher.maxalter.txt"
+    210 : OPEN FILE       : "LedgerVoucher.maxalter.txt" : Text : Write : ASCII
+    220 : WRITE FILE LINE : $$String:##MaxAlt
+    230 : CLOSE TARGET FILE
+
+;; ============================================= FUNCTION 3: Inventory Vouchers =
+[Function: Export Inventory CSV]
+
+    Variable : Line : String : ""
+    Variable : Hsn  : String : ""
+    Variable : HsnD : String : ""
+    Variable : Rate : String : ""
+    Variable : Taxb : String : ""
+    Variable : Uom  : String : ""
+
+    001 : Delete File     : "InventoryVoucher.csv"
+    010 : OPEN FILE       : "InventoryVoucher.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,GUID,MasterID,AlterID,VoucherNumber,VoucherType,PartyLedger,StockItem,HSNCode,HSNDesc,GSTRate,Taxability,BaseUnit,BilledQty,ActualQty,Rate,Amount,AddlAmount,Discount,Godown,OrderNo,OrderDueDate,TrackingNo,Batches"
+
+    100 : WALK COLLECTION : XSVoucher
+    102 :   SET : Hsn  : $InfGSTHSNCode:StockItem:$StockItemName
+    103 :   SET : HsnD : $InfGSTHSNDescription:StockItem:$StockItemName
+    104 :   SET : Rate : $InfGSTIGSTRate:StockItem:$StockItemName
+    105 :   SET : Taxb : $InfGSTTaxablility:StockItem:$StockItemName
+    106 :   SET : Uom  : $BaseUnits:StockItem:$StockItemName
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$String:$MasterID + ","
+    113 :   SET : Line : ##Line + $$String:$AlterID + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$StockItemName + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:##Hsn + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:##HsnD + ","
+    120 :   SET : Line : ##Line + $$String:##Rate + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:##Taxb + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:##Uom + ","
+    123 :   SET : Line : ##Line + $$String:$$Number:$BilledQty + ","
+    124 :   SET : Line : ##Line + $$String:$$Number:$ActualQty + ","
+    125 :   SET : Line : ##Line + $$String:$$Number:$Rate + ","
+    126 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    127 :   SET : Line : ##Line + $$String:$$Number:$AddlAmount + ","
+    128 :   SET : Line : ##Line + $$String:$$Number:$Discount + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:$GodownName + ","
+    130 :   SET : Line : ##Line + $$CsvEsc:$OrderNo + ","
+    131 :   SET : Line : ##Line + $$String:$OrderDueDate:UniversalDate + ","
+    132 :   SET : Line : ##Line + $$CsvEsc:$TrackingNumber + ","
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BatchAllocations:$BatchName
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================== FUNCTION 4: Bill-wise ====
+[Function: Export Billwise CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "Billwise.csv"
+    010 : OPEN FILE       : "Billwise.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,BillRef,BillType,BillAmount,DrCr,CreditPeriod,BillDate"
+
+    100 : WALK COLLECTION : XBill
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    113 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$BillType + ","
+    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr") + ","
+    120 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
+    121 :   SET : Line : ##Line + $$String:$BillDate:UniversalDate
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ============================================== FUNCTION 5: Ledger Master ====
+[Function: Export Ledger Master CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "LedgerList.csv"
+    010 : OPEN FILE       : "LedgerList.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Name,Parent,PrimaryGroup,IsBillWise,IsCostCentre,GSTIN,GSTRegType,GSTSupplyType,PAN,Address,State,Country,Pincode,Contact,Phone,Mobile,Email,BankName,BankAcNo,IFSC,CreditPeriod,OpeningBalance,ClosingBalance,CashInFlow,CashOutFlow"
+
+    100 : WALK COLLECTION : XLedger
+    110 :   SET : Line : $$CsvEsc:$Name + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Parent + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$_PrimaryGroup + ","
+    113 :   SET : Line : ##Line + $$String:$IsBillWiseOn + ","
+    114 :   SET : Line : ##Line + $$String:$IsCostCentresOn + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$PartyGSTIN + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$GSTRegistrationType + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$GSTTypeOfSupply + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:$IncomeTaxNumber + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$$FullList:Address:$Address + ","
+    120 :   SET : Line : ##Line + $$CsvEsc:$LedStateName + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:$CountryName + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:$PinCode + ","
+    123 :   SET : Line : ##Line + $$CsvEsc:$LedgerContact + ","
+    124 :   SET : Line : ##Line + $$CsvEsc:$LedgerPhone + ","
+    125 :   SET : Line : ##Line + $$CsvEsc:$LedgerMobile + ","
+    126 :   SET : Line : ##Line + $$CsvEsc:$Email + ","
+    127 :   SET : Line : ##Line + $$CsvEsc:$BankName + ","
+    128 :   SET : Line : ##Line + $$CsvEsc:$BankAccountNumber + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:$IFSCode + ","
+    130 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
+    131 :   SET : Line : ##Line + $$String:$$Number:$OpeningBalance + ","
+    132 :   SET : Line : ##Line + $$String:$$Number:$_ClosingBalance + ","
+    133 :   SET : Line : ##Line + $$String:$$Number:$_CashInFlow + ","
+    134 :   SET : Line : ##Line + $$String:$$Number:$_CashOutFlow
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================== FUNCTION 6: Cost-Centre ==
+[Function: Export CostCentre CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "CostCentre.csv"
+    010 : OPEN FILE       : "CostCentre.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,CostCategory,CostCentre,Amount,DrCr"
+
+    100 : WALK COLLECTION : XCC
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    113 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$Category + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
+    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr")
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ============================================================ COLLECTIONS ====
+;; -- accounting (full) --
+[Collection: XVoucher]
+    Type        : Voucher
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Filter      : DDDateFlt
+    Keep Source : Yes
+
+[Collection: XLVoucher]
+    Source Collection : XVoucher
+    Walk        : All Ledger Entries
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Fetch       : LedgerName, Amount, IsDeemedPositive
+    Keep Source : Yes
+
+;; -- accounting (delta: AlterID filtered) --
+[Collection: XVoucherDelta]
+    Type        : Voucher
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Filter      : DDDeltaFlt, DDDateFlt
+    Keep Source : Yes
+
+[Collection: XLVoucherDelta]
+    Source Collection : XVoucherDelta
+    Walk        : All Ledger Entries
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Fetch       : LedgerName, Amount, IsDeemedPositive
+    Keep Source : Yes
+
+;; -- inventory --
+[Collection: XVoucherInv]
+    Type        : Voucher
+    Fetch       : Date, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Filter      : DDDateFlt
+    Keep Source : Yes
+
+[Collection: XSVoucher]
+    Source Collection : XVoucherInv
+    Walk        : All Inventory Entries
+    Fetch       : Date, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Fetch       : StockItemName, BilledQty, ActualQty, Rate, Amount, AddlAmount, Discount
+    Fetch       : GodownName, OrderNo, OrderDueDate, TrackingNumber
+    Keep Source : Yes
+
+;; -- bill-wise --
+[Collection: XBillVoucher]
+    Type        : Voucher
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Filter      : DDDateFlt
+    Keep Source : Yes
+
+[Collection: XBillLE]
+    Source Collection : XBillVoucher
+    Walk        : All Ledger Entries
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Keep Source : Yes
+
+[Collection: XBill]
+    Source Collection : XBillLE
+    Walk        : Bill Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Fetch       : Name, BillType, Amount, BillCreditPeriod, BillDate
+    Keep Source : Yes
+
+;; -- cost-centre --
+[Collection: XCCVoucher]
+    Type        : Voucher
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Filter      : DDDateFlt
+    Keep Source : Yes
+
+[Collection: XCCLE]
+    Source Collection : XCCVoucher
+    Walk        : All Ledger Entries
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Keep Source : Yes
+
+[Collection: XCCCat]
+    Source Collection : XCCLE
+    Walk        : Category Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Fetch       : Category
+    Keep Source : Yes
+
+[Collection: XCC]
+    Source Collection : XCCCat
+    Walk        : Cost Centre Allocations
+    Fetch       : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName, LedgerName
+    Fetch       : Category
+    Fetch       : Name, Amount
+    Keep Source : Yes
+
+;; -- ledger master --
+[Collection: XLedger]
+    Type        : Ledger
+    Fetch       : Name, Parent, _PrimaryGroup, IsBillWiseOn, IsCostCentresOn
+    Fetch       : PartyGSTIN, GSTRegistrationType, GSTTypeOfSupply, IncomeTaxNumber
+    Fetch       : LedStateName, CountryName, PinCode, LedgerContact, LedgerPhone, LedgerMobile, Email
+    Fetch       : BankName, BankAccountNumber, IFSCode, BillCreditPeriod
+    Fetch       : OpeningBalance, _ClosingBalance, _CashInFlow, _CashOutFlow
+    Keep Source : Yes

@@ -1,0 +1,10 @@
+# Tally export outputs (generated when the TDL runs)
+*.csv
+*.tsv
+*.xlsx
+*.maxalter.txt
+Probe.csv
+
+# OS / editor
+.DS_Store
+*.swp

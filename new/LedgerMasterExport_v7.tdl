@@ -1,0 +1,74 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; LedgerMasterExport  -  v7  (FAST ledger-master CSV, comprehensive)
+;;   Fork of the original TDL; original kept untouched.
+;;
+;; Fills the last slow-path gap: ledger master existed only in the slow v1 xlsx
+;; (WRITE CELL). v7 = fast ASCII-CSV path (WRITE FILE LINE + Keep Source +
+;; collection-level Fetch), ALL commonly-needed master fields — identity, group,
+;; GST/PAN, statutory address/state, contact, bank, balances, cash flow.
+;;
+;; File produced (Tally app / data folder):
+;;   Menu > Export Ledger Master CSV (fast)  -> LedgerList.csv
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Ledger Master CSV (fast) : X : CALL : Export Ledger Master CSV
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; -------------------------------------------- main export (one row / ledger) --
+[Function: Export Ledger Master CSV]
+
+    Variable : Line : String : ""
+
+    001 : Delete File     : "LedgerList.csv"
+    010 : OPEN FILE       : "LedgerList.csv" : Text : Write : ASCII
+
+    020 : WRITE FILE LINE : "Name,Parent,PrimaryGroup,IsBillWise,IsCostCentre,GSTIN,GSTRegType,GSTSupplyType,PAN,Address,State,Country,Pincode,Contact,Phone,Mobile,Email,BankName,BankAcNo,IFSC,CreditPeriod,OpeningBalance,ClosingBalance,CashInFlow,CashOutFlow"
+
+    100 : WALK COLLECTION : XLedger
+    110 :   SET : Line : $$CsvEsc:$Name + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Parent + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$_PrimaryGroup + ","
+    113 :   SET : Line : ##Line + $$String:$IsBillWiseOn + ","
+    114 :   SET : Line : ##Line + $$String:$IsCostCentresOn + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$PartyGSTIN + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$GSTRegistrationType + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$GSTTypeOfSupply + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:$IncomeTaxNumber + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$$FullList:Address:$Address + ","
+    120 :   SET : Line : ##Line + $$CsvEsc:$LedStateName + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:$CountryName + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:$PinCode + ","
+    123 :   SET : Line : ##Line + $$CsvEsc:$LedgerContact + ","
+    124 :   SET : Line : ##Line + $$CsvEsc:$LedgerPhone + ","
+    125 :   SET : Line : ##Line + $$CsvEsc:$LedgerMobile + ","
+    126 :   SET : Line : ##Line + $$CsvEsc:$Email + ","
+    127 :   SET : Line : ##Line + $$CsvEsc:$BankName + ","
+    128 :   SET : Line : ##Line + $$CsvEsc:$BankAccountNumber + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:$IFSCode + ","
+    130 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
+    131 :   SET : Line : ##Line + $$String:$$Number:$OpeningBalance + ","
+    132 :   SET : Line : ##Line + $$String:$$Number:$_ClosingBalance + ","
+    133 :   SET : Line : ##Line + $$String:$$Number:$_CashInFlow + ","
+    134 :   SET : Line : ##Line + $$String:$$Number:$_CashOutFlow
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: XLedger]
+    Type        : Ledger
+    Fetch       : Name, Parent, _PrimaryGroup, IsBillWiseOn, IsCostCentresOn
+    Fetch       : PartyGSTIN, GSTRegistrationType, GSTTypeOfSupply, IncomeTaxNumber
+    Fetch       : LedStateName, CountryName, PinCode, LedgerContact, LedgerPhone, LedgerMobile, Email
+    Fetch       : BankName, BankAccountNumber, IFSCode, BillCreditPeriod
+    Fetch       : OpeningBalance, _ClosingBalance, _CashInFlow, _CashOutFlow
+    Keep Source : Yes

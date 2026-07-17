@@ -1,0 +1,106 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; FieldProbe  -  v10  (DIAGNOSTIC: confirm which [verify] methods exist)
+;;   Fork-family helper; touches no original code.
+;;
+;; PURPOSE: the exporters (v1-v9) use some method names that could not be
+;; runtime-verified without Tally. This probe emits a TALL CSV of
+;;   ObjectType, ObjectName, Field, Value
+;; for the first few Vouchers / Ledgers / Stock Items, listing every uncertain
+;; method. Load it, run once, open Probe.csv:
+;;   * a populated Value  => the method exists and works on THIS build.
+;;   * a blank Value      => either genuinely empty for that object, OR the
+;;                           method name is wrong for this build (compare a few
+;;                           objects; if ALL blank, suspect the name).
+;; Update docs/ANALYSIS.md [verify] flags from the result.
+;;
+;; File produced:  Probe.csv
+;; Sample size caps: 5 vouchers, 5 ledgers, 5 stock items (change @@ProbeN).
+;; ============================================================================
+
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : DD Field Probe : X : CALL : DD Field Probe
+
+[System: Formula]
+    ProbeN : 5
+
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; write one ObjectType,ObjectName,Field,Value row
+[Function: ProbeRow]
+    Parameter : pType  : String
+    Parameter : pName  : String
+    Parameter : pField : String
+    Parameter : pVal   : String
+    10 : WRITE FILE LINE : $$CsvEsc:##pType + "," + $$CsvEsc:##pName + "," + $$CsvEsc:##pField + "," + $$CsvEsc:##pVal
+
+[Function: DD Field Probe]
+
+    Variable : N : Number : 0
+
+    001 : Delete File     : "Probe.csv"
+    010 : OPEN FILE       : "Probe.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "ObjectType,ObjectName,Field,Value"
+
+    ;; ---------------- Vouchers (first @@ProbeN) ----------------------------
+    100 : SET  : N : 0
+    110 : WALK COLLECTION : ProbeVoucher
+    111 :   IF   : ##N < @@ProbeN
+    112 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "IsInvoice"        : $$String:$IsInvoice
+    113 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "EnteredBy"        : $EnteredBy
+    114 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "PlaceOfSupply"    : $PlaceOfSupply
+    115 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "RegistrationType" : $RegistrationType
+    116 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "PartyGSTIN"       : $PartyGSTIN
+    117 :     CALL : ProbeRow : "Voucher" : $VoucherNumber : "AlterID"          : $$String:$AlterID
+    118 :     SET  : N : ##N + 1
+    119 :   END IF
+    120 : END WALK
+
+    ;; ---------------- Ledgers (first @@ProbeN) -----------------------------
+    200 : SET  : N : 0
+    210 : WALK COLLECTION : ProbeLedger
+    211 :   IF   : ##N < @@ProbeN
+    212 :     CALL : ProbeRow : "Ledger" : $Name : "GSTRegistrationType" : $GSTRegistrationType
+    213 :     CALL : ProbeRow : "Ledger" : $Name : "GSTTypeOfSupply"     : $GSTTypeOfSupply
+    214 :     CALL : ProbeRow : "Ledger" : $Name : "LedStateName"        : $LedStateName
+    215 :     CALL : ProbeRow : "Ledger" : $Name : "IsBillWiseOn"        : $$String:$IsBillWiseOn
+    216 :     CALL : ProbeRow : "Ledger" : $Name : "LedgerContact"       : $LedgerContact
+    217 :     CALL : ProbeRow : "Ledger" : $Name : "BankName"            : $BankName
+    218 :     CALL : ProbeRow : "Ledger" : $Name : "IFSCode"             : $IFSCode
+    219 :     CALL : ProbeRow : "Ledger" : $Name : "BillCreditPeriod"    : $$String:$BillCreditPeriod
+    220 :     CALL : ProbeRow : "Ledger" : $Name : "GSTDutyHead"         : $GSTDutyHead
+    221 :     SET  : N : ##N + 1
+    222 :   END IF
+    230 : END WALK
+
+    ;; ---------------- Stock Items (first @@ProbeN) -------------------------
+    300 : SET  : N : 0
+    310 : WALK COLLECTION : ProbeStockItem
+    311 :   IF   : ##N < @@ProbeN
+    312 :     CALL : ProbeRow : "StockItem" : $Name : "InfGSTHSNCode"        : $InfGSTHSNCode
+    313 :     CALL : ProbeRow : "StockItem" : $Name : "InfGSTHSNDescription" : $InfGSTHSNDescription
+    314 :     CALL : ProbeRow : "StockItem" : $Name : "InfGSTIGSTRate"       : $$String:$InfGSTIGSTRate
+    315 :     CALL : ProbeRow : "StockItem" : $Name : "InfGSTTaxablility"    : $InfGSTTaxablility
+    316 :     CALL : ProbeRow : "StockItem" : $Name : "BaseUnits"            : $BaseUnits
+    317 :     SET  : N : ##N + 1
+    318 :   END IF
+    320 : END WALK
+
+    999 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: ProbeVoucher]
+    Type  : Voucher
+    Fetch : VoucherNumber, IsInvoice, EnteredBy, PlaceOfSupply, RegistrationType, PartyGSTIN, AlterID
+
+[Collection: ProbeLedger]
+    Type  : Ledger
+    Fetch : Name, GSTRegistrationType, GSTTypeOfSupply, LedStateName, IsBillWiseOn, LedgerContact, BankName, IFSCode, BillCreditPeriod
+
+[Collection: ProbeStockItem]
+    Type  : StockItem
+    Fetch : Name, InfGSTHSNCode, InfGSTHSNDescription, InfGSTIGSTRate, InfGSTTaxablility, BaseUnits

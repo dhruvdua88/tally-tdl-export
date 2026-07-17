@@ -1,0 +1,120 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; VoucherExport  -  v9  (FAST accounting CSV + AlterID DELTA / incremental)
+;;   Fork of the original TDL; original kept untouched.
+;;
+;; v9 = v5 accounting export + incremental (delta) capability.
+;;   Every voucher carries a monotonically-increasing AlterID that bumps on any
+;;   create/alter. v9 exports only vouchers with  AlterID > ##DDFromAlterID  and
+;;   writes the highest AlterID seen to a companion high-water-mark file, so an
+;;   automation pipeline can:
+;;       run 1:  DDFromAlterID = 0            -> full dump  + max=N written
+;;       run 2:  DDFromAlterID = N (last max) -> only changed rows since
+;;   Default ##DDFromAlterID = 0  => behaves as a normal FULL export.
+;;
+;;   Set the cursor either interactively (menu prompts for it) or from
+;;   automation:  SET : DDFromAlterID : <lastmax>  before CALL.
+;;
+;; Files produced (Tally app / data folder):
+;;   LedgerVoucher.csv            -- the data (header + rows)
+;;   LedgerVoucher.maxalter.txt   -- single line: highest AlterID in this run
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Voucher CSV (delta) : X : CALL : Export Voucher CSV Delta
+
+;; -------------------------------------------------------- system variable ---
+;; Cursor: export only vouchers whose AlterID exceeds this. 0 = full export.
+[Variable: DDFromAlterID]
+    Type    : Number
+    Default : 0
+
+;; ------------------------------------------------------------- filter -------
+[System: Formula]
+    DDDeltaFlt : $AlterID > ##DDFromAlterID
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; -------------------------------------------- main export (one row / entry) --
+[Function: Export Voucher CSV Delta]
+
+    Variable : Line   : String : ""
+    Variable : LGroup : String : ""
+    Variable : LDuty  : String : ""
+    Variable : LGstin : String : ""
+    Variable : MaxAlt : Number : 0
+
+    001 : Delete File     : "LedgerVoucher.csv"
+    010 : OPEN FILE       : "LedgerVoucher.csv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
+
+    100 : WALK COLLECTION : XLVoucherDelta
+    ;; track high-water mark
+    101 :   IF   : $AlterID > ##MaxAlt
+    102 :     SET : MaxAlt : $$Number:$AlterID
+    103 :   END IF
+    105 :   SET : LGroup : $Parent:Ledger:$LedgerName
+    106 :   SET : LDuty  : $GSTDutyHead:Ledger:$LedgerName
+    107 :   SET : LGstin : $PartyGSTIN:Ledger:$LedgerName
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$String:$EffectiveDate:UniversalDate + ","
+    112 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    113 :   SET : Line : ##Line + $$String:$MasterID + ","
+    114 :   SET : Line : ##Line + $$String:$AlterID + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    117 :   SET : Line : ##Line + $$String:$IsInvoice + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:$EnteredBy + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$Reference + ","
+    120 :   SET : Line : ##Line + $$String:$ReferenceDate:UniversalDate + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:$PartyGSTIN + ","
+    123 :   SET : Line : ##Line + $$CsvEsc:$PlaceOfSupply + ","
+    124 :   SET : Line : ##Line + $$String:$IsCancelled + ","
+    125 :   SET : Line : ##Line + $$String:$IsOptional + ","
+    126 :   SET : Line : ##Line + $$CsvEsc:$Narration + ","
+    127 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
+    128 :   SET : Line : ##Line + $$CsvEsc:##LGroup + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:##LDuty + ","
+    130 :   SET : Line : ##Line + $$CsvEsc:##LGstin + ","
+    131 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    132 :   SET : Line : ##Line + (if $IsDeemedPositive then "Dr" else "Cr") + ","
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BillAllocations:$Name + ","
+    134 :   SET : Line : ##Line + $$CsvEsc:$$FullList:CostCentreAllocations:$Name + ","
+    135 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$TransactionType + ","
+    136 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentNumber + ","
+    137 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentDate + ","
+    138 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$BankName
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+    ;; write the high-water mark for the next incremental run
+    200 : Delete File     : "LedgerVoucher.maxalter.txt"
+    210 : OPEN FILE       : "LedgerVoucher.maxalter.txt" : Text : Write : ASCII
+    220 : WRITE FILE LINE : $$String:##MaxAlt
+    230 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: XVoucherDelta]
+    Type        : Voucher
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Filter      : DDDeltaFlt
+    Keep Source : Yes
+
+[Collection: XLVoucherDelta]
+    Source Collection : XVoucherDelta
+    Walk        : All Ledger Entries
+    Fetch       : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch       : IsInvoice, EnteredBy, Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch       : Narration, IsCancelled, IsOptional
+    Fetch       : LedgerName, Amount, IsDeemedPositive
+    Keep Source : Yes

@@ -1,0 +1,93 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; InventoryExport  -  v6  (FAST inventory CSV + HSN/GST from item master)
+;;   Fork of the original TDL; original kept untouched.
+;;
+;; v6 = v4 + per-stock-line GST identity, joined from the Stock Item master via
+;;   cross-object lookup  $Method:StockItem:$StockItemName  (staged into temp
+;;   vars to avoid ':' arg-split, per v5 lesson):
+;;     * HSNCode     = $InfGSTHSNCode:StockItem:$StockItemName
+;;     * HSNDesc     = $InfGSTHSNDescription:StockItem:$StockItemName
+;;     * GSTRate     = $InfGSTIGSTRate:StockItem:$StockItemName   (total IGST %)
+;;     * Taxability  = $InfGSTTaxablility:StockItem:$StockItemName (Taxable/Exempt/Nil)
+;;     * BaseUnit    = $BaseUnits:StockItem:$StockItemName        (UOM)
+;;   => each stock line now carries HSN + rate for GST working / e-invoice reco.
+;;
+;; File produced (Tally app / data folder):
+;;   Menu > Export Inventory CSV (fast)  -> InventoryVoucher.csv
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : Export Inventory CSV (fast) : X : CALL : Export Inventory CSV
+
+;; ------------------------------------------------- helper: CSV-escape text --
+[Function: CsvEsc]
+    Parameter : pVal : String
+    Returns   : String
+    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+
+;; -------------------------------------------- main export (one row / stock line) --
+[Function: Export Inventory CSV]
+
+    Variable : Line  : String : ""
+    Variable : Hsn   : String : ""
+    Variable : HsnD  : String : ""
+    Variable : Rate  : String : ""
+    Variable : Taxb  : String : ""
+    Variable : Uom   : String : ""
+
+    001 : Delete File     : "InventoryVoucher.csv"
+    010 : OPEN FILE       : "InventoryVoucher.csv" : Text : Write : ASCII
+
+    020 : WRITE FILE LINE : "Date,GUID,MasterID,AlterID,VoucherNumber,VoucherType,PartyLedger,StockItem,HSNCode,HSNDesc,GSTRate,Taxability,BaseUnit,BilledQty,ActualQty,Rate,Amount,AddlAmount,Discount,Godown,OrderNo,OrderDueDate,TrackingNo,Batches"
+
+    100 : WALK COLLECTION : XSVoucher
+    ;; stage stock-item master lookups first
+    102 :   SET : Hsn  : $InfGSTHSNCode:StockItem:$StockItemName
+    103 :   SET : HsnD : $InfGSTHSNDescription:StockItem:$StockItemName
+    104 :   SET : Rate : $InfGSTIGSTRate:StockItem:$StockItemName
+    105 :   SET : Taxb : $InfGSTTaxablility:StockItem:$StockItemName
+    106 :   SET : Uom  : $BaseUnits:StockItem:$StockItemName
+    110 :   SET : Line : $$String:$Date:UniversalDate + ","
+    111 :   SET : Line : ##Line + $$CsvEsc:$Guid + ","
+    112 :   SET : Line : ##Line + $$String:$MasterID + ","
+    113 :   SET : Line : ##Line + $$String:$AlterID + ","
+    114 :   SET : Line : ##Line + $$CsvEsc:$VoucherNumber + ","
+    115 :   SET : Line : ##Line + $$CsvEsc:$VoucherTypeName + ","
+    116 :   SET : Line : ##Line + $$CsvEsc:$PartyLedgerName + ","
+    117 :   SET : Line : ##Line + $$CsvEsc:$StockItemName + ","
+    118 :   SET : Line : ##Line + $$CsvEsc:##Hsn + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:##HsnD + ","
+    120 :   SET : Line : ##Line + $$String:##Rate + ","
+    121 :   SET : Line : ##Line + $$CsvEsc:##Taxb + ","
+    122 :   SET : Line : ##Line + $$CsvEsc:##Uom + ","
+    123 :   SET : Line : ##Line + $$String:$$Number:$BilledQty + ","
+    124 :   SET : Line : ##Line + $$String:$$Number:$ActualQty + ","
+    125 :   SET : Line : ##Line + $$String:$$Number:$Rate + ","
+    126 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    127 :   SET : Line : ##Line + $$String:$$Number:$AddlAmount + ","
+    128 :   SET : Line : ##Line + $$String:$$Number:$Discount + ","
+    129 :   SET : Line : ##Line + $$CsvEsc:$GodownName + ","
+    130 :   SET : Line : ##Line + $$CsvEsc:$OrderNo + ","
+    131 :   SET : Line : ##Line + $$String:$OrderDueDate:UniversalDate + ","
+    132 :   SET : Line : ##Line + $$CsvEsc:$TrackingNumber + ","
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BatchAllocations:$BatchName
+    140 :   WRITE FILE LINE : ##Line
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ------------------------------------------------------------- collections --
+[Collection: XVoucherInv]
+    Type        : Voucher
+    Fetch       : Date, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Keep Source : Yes
+
+[Collection: XSVoucher]
+    Source Collection : XVoucherInv
+    Walk        : All Inventory Entries
+    Fetch       : Date, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Fetch       : StockItemName, BilledQty, ActualQty, Rate, Amount, AddlAmount, Discount
+    Fetch       : GodownName, OrderNo, OrderDueDate, TrackingNumber
+    Keep Source : Yes

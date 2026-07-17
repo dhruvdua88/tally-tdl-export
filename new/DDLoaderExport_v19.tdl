@@ -1,0 +1,481 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; DDLoaderExport  -  v19  (tally-database-loader-FORMAT export, pure TDL)
+;;   Fork-family; original untouched.
+;;
+;; Emits the SAME tables/columns/format as dhananjay1405/tally-database-loader,
+;; but entirely from TDL (no external Node puller). One .tsv per loader table.
+;;
+;; FORMAT (matches loader exactly - see docs/LOADER_SCHEMA.md):
+;;   * TAB-delimited, one header row of loader column names, CRLF rows.
+;;   * Per-column value transform by loader "type": text/logical/date/number/
+;;     amount/quantity/rate -> replicated in functions Ldr T/L/D/N/A/Q/R below,
+;;     character-for-character with the loader's src/tally.mts generator.
+;;   * Empty-date sentinel = char 241 ("n-tilde"), loader's NULL marker.
+;;   * Every child (derived) table repeats the parent voucher GUID as col 1.
+;;   * Transaction collections filtered NOT cancelled / NOT optional.
+;;
+;; MENU: Gateway > DD Loader Export  (key L) -> submenu, one item per table +
+;;   "Export ALL". Output files: mst_group.tsv, mst_ledger.tsv, ... trn_batch.tsv
+;;
+;; NOTE: uses WRITE FILE LINE (not the report engine) because byte-exact TAB +
+;; n-tilde-sentinel output cannot be produced by the ASCII/CSV export engine.
+;; For very large data use loader's HTTP puller (docs/METHODS_LARGE_DATA.md).
+;; ============================================================================
+
+;; ------------------------------------------------------------ Menu + submenu -
+[#Menu: Gateway of Tally]
+    Add : Key Item : Before : @@locQuit : DD Loader Export : L : Menu : DD Loader Menu
+
+[Menu: DD Loader Menu]
+    Add : Key Item : Export ALL (loader format) : X : Call : Export Ldr ALL
+    Add : Key Item : mst_group        : G : Call : Export Ldr Group
+    Add : Key Item : mst_ledger       : L : Call : Export Ldr Ledger
+    Add : Key Item : mst_vouchertype  : V : Call : Export Ldr VoucherType
+    Add : Key Item : mst_stock_item   : S : Call : Export Ldr StockItem
+    Add : Key Item : mst_godown       : O : Call : Export Ldr Godown
+    Add : Key Item : mst_cost_category: K : Call : Export Ldr CostCategory
+    Add : Key Item : mst_cost_centre  : C : Call : Export Ldr CostCentre
+    Add : Key Item : trn_voucher      : U : Call : Export Ldr Voucher
+    Add : Key Item : trn_accounting   : A : Call : Export Ldr Accounting
+    Add : Key Item : trn_inventory    : I : Call : Export Ldr Inventory
+    Add : Key Item : trn_cost_centre  : E : Call : Export Ldr CostCentreTxn
+    Add : Key Item : trn_bill         : B : Call : Export Ldr Bill
+    Add : Key Item : trn_bank         : N : Call : Export Ldr Bank
+    Add : Key Item : trn_batch        : T : Call : Export Ldr Batch
+
+;; ------------------------------------------------------ format constants -----
+[System: Formula]
+    LdrTab   : $$StrByCharCode:9
+    LdrCR    : $$StrByCharCode:13
+    LdrLF    : $$StrByCharCode:10
+    LdrNull  : $$StrByCharCode:241
+    LdrActive: NOT $IsCancelled AND NOT $IsOptional
+
+;; ------------------------------------------ type formatters (loader-exact) ---
+;; text: strip TAB/CR/LF -> space (loader cleans embedded separators)
+[Function: LdrT]
+    Parameter : v : String
+    Returns   : String
+    Variable  : t : String
+    10 : SET : t : $$StringFindAndReplace:##v:@@LdrTab:" "
+    20 : SET : t : $$StringFindAndReplace:##t:@@LdrCR:" "
+    30 : SET : t : $$StringFindAndReplace:##t:@@LdrLF:" "
+    40 : RETURN : ##t
+
+;; logical: 1/0
+[Function: LdrL]
+    Parameter : v : Logical
+    Returns   : String
+    10 : RETURN : if ##v then "1" else "0"
+
+;; date: YYYY-MM-DD or n-tilde sentinel when empty
+[Function: LdrD]
+    Parameter : v : Date
+    Returns   : String
+    10 : RETURN : if $$IsEmpty:##v then @@LdrNull else $$PyrlYYYYMMDDFormat:##v:"-"
+
+;; number: "0" when empty, else stringified with (-)->-
+[Function: LdrN]
+    Parameter : v : String
+    Returns   : String
+    10 : RETURN : if $$IsEmpty:##v then "0" else $$StringFindAndReplace:($$String:##v):"(-)":"-"
+
+;; amount: sign-normalised via IsDebit, (-)->-
+[Function: LdrA]
+    Parameter : v : Amount
+    Returns   : String
+    10 : RETURN : $$StringFindAndReplace:(if $$IsDebit:##v then -$$NumValue:##v else $$NumValue:##v):"(-)":"-"
+
+;; quantity: sign via IsInwards, TailUnits number, (-)->-
+[Function: LdrQ]
+    Parameter : v : Quantity
+    Returns   : String
+    10 : RETURN : $$StringFindAndReplace:(if $$IsInwards:##v then $$Number:$$String:##v:"TailUnits" else -$$Number:$$String:##v:"TailUnits"):"(-)":"-"
+
+;; rate: 0 when empty else number
+[Function: LdrR]
+    Parameter : v : Rate
+    Returns   : String
+    10 : RETURN : if $$IsEmpty:##v then "0" else $$Number:##v
+
+;; ======================================================= MASTER: mst_group ===
+[Function: Export Ldr Group]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "mst_group.tsv"
+    010 : OPEN FILE : "mst_group.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"primary_group"+@@LdrTab+"is_revenue"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"is_reserved"+@@LdrTab+"affects_gross_profit"+@@LdrTab+"sort_position"
+    100 : WALK COLLECTION : Ldr_Group
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : c : if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$_PrimaryGroup
+    114 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsRevenue
+    115 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsDeemedPositive
+    116 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsReserved
+    117 :   SET : L : ##L + @@LdrTab + $$LdrL:$AffectsGrossProfit
+    118 :   SET : L : ##L + @@LdrTab + $$LdrN:$SortPosition
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ====================================================== MASTER: mst_ledger ===
+[Function: Export Ldr Ledger]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "mst_ledger.tsv"
+    010 : OPEN FILE : "mst_ledger.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"alias"+@@LdrTab+"description"+@@LdrTab+"notes"+@@LdrTab+"is_revenue"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"opening_balance"+@@LdrTab+"closing_balance"+@@LdrTab+"mailing_name"+@@LdrTab+"mailing_address"+@@LdrTab+"mailing_state"+@@LdrTab+"mailing_country"+@@LdrTab+"mailing_pincode"+@@LdrTab+"email"+@@LdrTab+"mobile"+@@LdrTab+"it_pan"+@@LdrTab+"gstn"+@@LdrTab+"gst_registration_type"+@@LdrTab+"gst_supply_type"+@@LdrTab+"gst_duty_head"+@@LdrTab+"bank_account_holder"+@@LdrTab+"bank_account_number"+@@LdrTab+"bank_ifsc"+@@LdrTab+"bank_swift"+@@LdrTab+"bank_name"+@@LdrTab+"bank_branch"+@@LdrTab+"bill_credit_period"
+    100 : WALK COLLECTION : Ldr_Ledger
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : c : if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$OnlyAlias
+    114 :   SET : L : ##L + @@LdrTab + $$LdrT:$Description
+    115 :   SET : L : ##L + @@LdrTab + $$LdrT:$Narration
+    116 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsRevenue
+    117 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsDeemedPositive
+    118 :   SET : L : ##L + @@LdrTab + $$LdrA:$OpeningBalance
+    119 :   SET : L : ##L + @@LdrTab + $$LdrA:$ClosingBalance
+    120 :   SET : L : ##L + @@LdrTab + $$LdrT:$MailingName
+    121 :   SET : c : if $$IsEmpty:$Address then "" else $$FullList:Address:$Address
+    122 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    123 :   SET : L : ##L + @@LdrTab + $$LdrT:$LedStateName
+    124 :   SET : L : ##L + @@LdrTab + $$LdrT:$CountryName
+    125 :   SET : L : ##L + @@LdrTab + $$LdrT:$PinCode
+    126 :   SET : L : ##L + @@LdrTab + $$LdrT:$Email
+    127 :   SET : c : if NOT $$IsEmpty:$LedgerMobile then $$Sprintf:"%s %s":$LedgerCountryISDCode:$LedgerMobile else ""
+    128 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    129 :   SET : L : ##L + @@LdrTab + $$LdrT:$IncomeTaxNumber
+    130 :   SET : c : if $$IsEmpty:$PartyGSTIN then $LedGSTRegDetails[Last].GSTIN else $PartyGSTIN
+    131 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    132 :   SET : c : if $$IsEmpty:$Gstregistrationtype then $LedGSTRegDetails[Last].Gstregistrationtype else $Gstregistrationtype
+    133 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    134 :   SET : L : ##L + @@LdrTab + $$LdrT:$Gsttypeofsupply
+    135 :   SET : L : ##L + @@LdrTab + $$LdrT:$Gstdutyhead
+    136 :   SET : L : ##L + @@LdrTab + $$LdrT:$Bankaccholdername
+    137 :   SET : L : ##L + @@LdrTab + $$LdrT:$BankDetails
+    138 :   SET : L : ##L + @@LdrTab + $$LdrT:$Ifscode
+    139 :   SET : L : ##L + @@LdrTab + $$LdrT:$Swiftcode
+    140 :   SET : L : ##L + @@LdrTab + $$LdrT:$Bankingconfigbank
+    141 :   SET : L : ##L + @@LdrTab + $$LdrT:$BankBranchname
+    142 :   SET : c : $$Number:$BillCreditPeriod
+    143 :   SET : L : ##L + @@LdrTab + $$String:##c
+    150 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================= MASTER: mst_vouchertype ===
+[Function: Export Ldr VoucherType]
+    Variable : L : String
+    001 : Delete File : "mst_vouchertype.tsv"
+    010 : OPEN FILE : "mst_vouchertype.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"numbering_method"+@@LdrTab+"is_deemedpositive"+@@LdrTab+"affects_stock"
+    100 : WALK COLLECTION : Ldr_VchType
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:$NumberingMethod
+    113 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsDeemedPositive
+    114 :   SET : L : ##L + @@LdrTab + $$LdrL:$AffectsStock
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; =================================================== MASTER: mst_stock_item ===
+[Function: Export Ldr StockItem]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "mst_stock_item.tsv"
+    010 : OPEN FILE : "mst_stock_item.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"category"+@@LdrTab+"alias"+@@LdrTab+"description"+@@LdrTab+"notes"+@@LdrTab+"part_number"+@@LdrTab+"uom"+@@LdrTab+"alternate_uom"+@@LdrTab+"conversion"+@@LdrTab+"opening_balance"+@@LdrTab+"opening_rate"+@@LdrTab+"opening_value"+@@LdrTab+"closing_balance"+@@LdrTab+"closing_rate"+@@LdrTab+"closing_value"+@@LdrTab+"costing_method"+@@LdrTab+"gst_type_of_supply"+@@LdrTab+"gst_hsn_code"+@@LdrTab+"gst_hsn_description"+@@LdrTab+"gst_rate"+@@LdrTab+"gst_taxability"
+    100 : WALK COLLECTION : Ldr_StockItem
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : c : if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    113 :   SET : c : if $$IsEqual:$Category:$$SysName:NotApplicable then "" else $Category
+    114 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    115 :   SET : L : ##L + @@LdrTab + $$LdrT:$OnlyAlias
+    116 :   SET : L : ##L + @@LdrTab + $$LdrT:$Description
+    117 :   SET : L : ##L + @@LdrTab + $$LdrT:$Narration
+    118 :   SET : L : ##L + @@LdrTab + $$LdrT:$PartNo
+    119 :   SET : c : if $$IsEqual:$BaseUnits:$$SysName:NotApplicable then "" else $BaseUnits
+    120 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    121 :   SET : c : if $$IsEqual:$AdditionalUnits:$$SysName:NotApplicable then "" else $AdditionalUnits
+    122 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    123 :   SET : L : ##L + @@LdrTab + $$LdrN:$Conversion
+    124 :   SET : L : ##L + @@LdrTab + $$LdrQ:$OpeningBalance
+    125 :   SET : L : ##L + @@LdrTab + $$LdrR:$OpeningRate
+    126 :   SET : L : ##L + @@LdrTab + $$LdrA:$OpeningValue
+    127 :   SET : L : ##L + @@LdrTab + $$LdrQ:$ClosingBalance
+    128 :   SET : L : ##L + @@LdrTab + $$LdrR:$ClosingRate
+    129 :   SET : L : ##L + @@LdrTab + $$LdrA:$ClosingValue
+    130 :   SET : L : ##L + @@LdrTab + $$LdrT:$CostingMethod
+    131 :   SET : L : ##L + @@LdrTab + $$LdrT:$GSTMSTTypeofSupply
+    132 :   SET : L : ##L + @@LdrTab + $$LdrT:$InfGSTHSNCode
+    133 :   SET : L : ##L + @@LdrTab + $$LdrT:$InfGSTHSNDescription
+    134 :   SET : L : ##L + @@LdrTab + $$LdrN:$InfGSTIGSTRate
+    135 :   SET : L : ##L + @@LdrTab + $$LdrT:$InfGSTTaxablility
+    150 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ====================================================== MASTER: mst_godown ===
+[Function: Export Ldr Godown]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "mst_godown.tsv"
+    010 : OPEN FILE : "mst_godown.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"address"
+    100 : WALK COLLECTION : Ldr_Godown
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : c : if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    113 :   SET : c : if $$IsEmpty:$Address then "" else $$FullList:Address:$Address
+    114 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================ MASTER: mst_cost_category ===
+[Function: Export Ldr CostCategory]
+    Variable : L : String
+    001 : Delete File : "mst_cost_category.tsv"
+    010 : OPEN FILE : "mst_cost_category.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"allocate_revenue"+@@LdrTab+"allocate_non_revenue"
+    100 : WALK COLLECTION : Ldr_CostCat
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : L : ##L + @@LdrTab + $$LdrL:$AllocateRevenue
+    112 :   SET : L : ##L + @@LdrTab + $$LdrL:$AllocateNonRevenue
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================== MASTER: mst_cost_centre ===
+[Function: Export Ldr CostCentre]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "mst_cost_centre.tsv"
+    010 : OPEN FILE : "mst_cost_centre.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"name"+@@LdrTab+"parent"+@@LdrTab+"category"
+    100 : WALK COLLECTION : Ldr_CostCtr
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$Name
+    111 :   SET : c : if $$IsEqual:$Parent:$$SysName:Primary then "" else $Parent
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$Category
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ==================================================== TRANS: trn_voucher =====
+[Function: Export Ldr Voucher]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "trn_voucher.tsv"
+    010 : OPEN FILE : "trn_voucher.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"date"+@@LdrTab+"voucher_type"+@@LdrTab+"voucher_number"+@@LdrTab+"reference_number"+@@LdrTab+"reference_date"+@@LdrTab+"narration"+@@LdrTab+"party_name"+@@LdrTab+"place_of_supply"+@@LdrTab+"is_invoice"+@@LdrTab+"is_accounting_voucher"+@@LdrTab+"is_inventory_voucher"+@@LdrTab+"is_order_voucher"
+    100 : WALK COLLECTION : Ldr_Vch
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrD:$Date
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$VoucherTypeName
+    112 :   SET : L : ##L + @@LdrTab + $$LdrT:$VoucherNumber
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$Reference
+    114 :   SET : L : ##L + @@LdrTab + $$LdrD:$ReferenceDate
+    115 :   SET : L : ##L + @@LdrTab + $$LdrT:$Narration
+    116 :   SET : L : ##L + @@LdrTab + $$LdrT:$PartyLedgerName
+    117 :   SET : L : ##L + @@LdrTab + $$LdrT:$PlaceOfSupply
+    118 :   SET : L : ##L + @@LdrTab + $$LdrL:$IsInvoice
+    119 :   SET : c : if $$IsAccountingVch:$VoucherTypeName then "1" else "0"
+    120 :   SET : L : ##L + @@LdrTab + ##c
+    121 :   SET : c : if $$IsInventoryVch:$VoucherTypeName then "1" else "0"
+    122 :   SET : L : ##L + @@LdrTab + ##c
+    123 :   SET : c : if $$IsOrderVch:$VoucherTypeName then "1" else "0"
+    124 :   SET : L : ##L + @@LdrTab + ##c
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================= TRANS: trn_accounting =====
+[Function: Export Ldr Accounting]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "trn_accounting.tsv"
+    010 : OPEN FILE : "trn_accounting.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"amount"+@@LdrTab+"amount_forex"+@@LdrTab+"currency"
+    100 : WALK COLLECTION : Ldr_Acc
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    112 :   SET : c : if $$IsEmpty:$$ForexValue:$Amount then 0 else $$StringFindAndReplace:(if $$IsDebit:$Amount then -$$ForexValue:$Amount else $$ForexValue:$Amount):"(-)":"-"
+    113 :   SET : L : ##L + @@LdrTab + $$String:##c
+    114 :   SET : c : $$Currency:$Amount
+    115 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================== TRANS: trn_inventory =====
+[Function: Export Ldr Inventory]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "trn_inventory.tsv"
+    010 : OPEN FILE : "trn_inventory.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"item"+@@LdrTab+"quantity"+@@LdrTab+"rate"+@@LdrTab+"amount"+@@LdrTab+"additional_amount"+@@LdrTab+"discount_amount"+@@LdrTab+"godown"+@@LdrTab+"tracking_number"+@@LdrTab+"order_number"+@@LdrTab+"order_duedate"
+    100 : WALK COLLECTION : Ldr_Inv
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$StockItemName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrQ:$ActualQty
+    112 :   SET : L : ##L + @@LdrTab + $$LdrR:$Rate
+    113 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    114 :   SET : L : ##L + @@LdrTab + $$LdrA:$AddlAmount
+    115 :   SET : L : ##L + @@LdrTab + $$LdrN:$Discount
+    116 :   SET : L : ##L + @@LdrTab + $$LdrT:$GodownName
+    117 :   SET : c : if ($$IsEmpty:$TrackingNumber or $$IsNotApplicable:$TrackingNumber) then "" else $TrackingNumber
+    118 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    119 :   SET : c : if ($$IsEmpty:$OrderNo or $$IsNotApplicable:$OrderNo) then "" else $OrderNo
+    120 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    121 :   SET : L : ##L + @@LdrTab + $$LdrD:$OrderDueDate
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================ TRANS: trn_cost_centre =====
+[Function: Export Ldr CostCentreTxn]
+    Variable : L : String
+    001 : Delete File : "trn_cost_centre.tsv"
+    010 : OPEN FILE : "trn_cost_centre.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"costcentre"+@@LdrTab+"amount"
+    100 : WALK COLLECTION : Ldr_CC
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$Name
+    112 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ======================================================= TRANS: trn_bill =====
+[Function: Export Ldr Bill]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "trn_bill.tsv"
+    010 : OPEN FILE : "trn_bill.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"name"+@@LdrTab+"amount"+@@LdrTab+"billtype"+@@LdrTab+"bill_credit_period"
+    100 : WALK COLLECTION : Ldr_Bill
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$Name
+    112 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$BillType
+    114 :   SET : c : $$Number:$BillCreditPeriod
+    115 :   SET : L : ##L + @@LdrTab + $$String:##c
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ======================================================= TRANS: trn_bank =====
+[Function: Export Ldr Bank]
+    Variable : L : String
+    001 : Delete File : "trn_bank.tsv"
+    010 : OPEN FILE : "trn_bank.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"ledger"+@@LdrTab+"transaction_type"+@@LdrTab+"instrument_date"+@@LdrTab+"instrument_number"+@@LdrTab+"bank_name"+@@LdrTab+"amount"+@@LdrTab+"bankers_date"
+    100 : WALK COLLECTION : Ldr_Bank
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$LedgerName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$TransactionType
+    112 :   SET : L : ##L + @@LdrTab + $$LdrD:$InstrumentDate
+    113 :   SET : L : ##L + @@LdrTab + $$LdrT:$InstrumentNumber
+    114 :   SET : L : ##L + @@LdrTab + $$LdrT:$BankName
+    115 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    116 :   SET : L : ##L + @@LdrTab + $$LdrD:$BankersDate
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ====================================================== TRANS: trn_batch =====
+[Function: Export Ldr Batch]
+    Variable : L : String
+    Variable : c : String
+    001 : Delete File : "trn_batch.tsv"
+    010 : OPEN FILE : "trn_batch.tsv" : Text : Write : ASCII
+    020 : WRITE FILE LINE : "guid"+@@LdrTab+"item"+@@LdrTab+"name"+@@LdrTab+"quantity"+@@LdrTab+"amount"+@@LdrTab+"godown"+@@LdrTab+"destination_godown"+@@LdrTab+"tracking_number"
+    100 : WALK COLLECTION : Ldr_Batch
+    110 :   SET : L : $$LdrT:$Guid + @@LdrTab + $$LdrT:$StockItemName
+    111 :   SET : L : ##L + @@LdrTab + $$LdrT:$BatchName
+    112 :   SET : L : ##L + @@LdrTab + $$LdrQ:$ActualQty
+    113 :   SET : L : ##L + @@LdrTab + $$LdrA:$Amount
+    114 :   SET : L : ##L + @@LdrTab + $$LdrT:$GodownName
+    115 :   SET : L : ##L + @@LdrTab + $$LdrT:$DestinationGodownName
+    116 :   SET : c : if ($$IsEmpty:$TrackingNumber or $$IsNotApplicable:$TrackingNumber) then "" else $TrackingNumber
+    117 :   SET : L : ##L + @@LdrTab + $$LdrT:##c
+    130 :   WRITE FILE LINE : ##L
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ============================================================ Export ALL =====
+[Function: Export Ldr ALL]
+    10 : CALL : Export Ldr Group
+    11 : CALL : Export Ldr Ledger
+    12 : CALL : Export Ldr VoucherType
+    13 : CALL : Export Ldr StockItem
+    14 : CALL : Export Ldr Godown
+    15 : CALL : Export Ldr CostCategory
+    16 : CALL : Export Ldr CostCentre
+    17 : CALL : Export Ldr Voucher
+    18 : CALL : Export Ldr Accounting
+    19 : CALL : Export Ldr Inventory
+    20 : CALL : Export Ldr CostCentreTxn
+    21 : CALL : Export Ldr Bill
+    22 : CALL : Export Ldr Bank
+    23 : CALL : Export Ldr Batch
+
+;; ============================================================ COLLECTIONS ====
+;; -- masters --
+[Collection: Ldr_Group]
+    Type : Group
+[Collection: Ldr_Ledger]
+    Type : Ledger
+[Collection: Ldr_VchType]
+    Type : VoucherType
+[Collection: Ldr_StockItem]
+    Type  : StockItem
+    Fetch : GstDetails, PartNo
+[Collection: Ldr_Godown]
+    Type : Godown
+[Collection: Ldr_CostCat]
+    Type : CostCategory
+[Collection: Ldr_CostCtr]
+    Type : CostCentre
+
+;; -- transaction root --
+[Collection: Ldr_Vch]
+    Type   : Voucher
+    Fetch  : Narration, PartyLedgerName, PlaceOfSupply, Reference, ReferenceDate
+    Filter : LdrActive
+
+;; -- derived: ledger entries + their allocations --
+[Collection: Ldr_Acc]
+    Source Collection : Ldr_Vch
+    Walk  : All Ledger Entries
+    Fetch : Guid, LedgerName, Amount
+
+[Collection: Ldr_CC]
+    Source Collection : Ldr_Acc
+    Walk  : Cost Centre Allocations
+    Fetch : Guid, LedgerName, Name, Amount
+
+[Collection: Ldr_Bill]
+    Source Collection : Ldr_Acc
+    Walk  : Bill Allocations
+    Fetch : Guid, LedgerName, Name, Amount, BillType, BillCreditPeriod
+
+[Collection: Ldr_Bank]
+    Source Collection : Ldr_Acc
+    Walk  : Bank Allocations
+    Fetch : Guid, LedgerName, TransactionType, InstrumentDate, InstrumentNumber, BankName, Amount, BankersDate
+
+;; -- derived: inventory entries + batches --
+[Collection: Ldr_Inv]
+    Source Collection : Ldr_Vch
+    Walk  : All Inventory Entries
+    Fetch : Guid, StockItemName, ActualQty, Rate, Amount, AddlAmount, Discount, GodownName, TrackingNumber, OrderNo, OrderDueDate
+
+[Collection: Ldr_Batch]
+    Source Collection : Ldr_Inv
+    Walk  : Batch Allocations
+    Fetch : Guid, StockItemName, BatchName, ActualQty, Amount, GodownName, DestinationGodownName, TrackingNumber

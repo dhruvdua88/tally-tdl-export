@@ -1,0 +1,262 @@
+;; ============================================================================
+;; Sri Ganeshji : Sri Balaji : Sri Pitreshwarji : Sri Durgaji : Sri Venkateshwara
+;; ============================================================================
+;; VoucherExport  -  v1  (improved fork of "new tdl - 05102019WORKING")
+;;
+;; Objectives of this fork (original file kept untouched):
+;;   1. ACCURACY  - export ALL useful fields of every voucher (header +
+;;                  ledger-entry level + inventory level), not just a subset.
+;;   2. FORMAT    - header row on every sheet, numeric Amount, explicit Dr/Cr
+;;                  column, clean date columns.
+;;   3. SPEED     - drop "Is ODBC Table" from collections that are only WALKed
+;;                  (avoids ODBC index build), remove the unused very heavy
+;;                  RTSAllVouchers collection (Fetch *, AllLedgerEntries.*),
+;;                  write $values directly (no per-row copy to intermediate
+;;                  variables).
+;;
+;; NOTE on TDL syntax: each numbered statement performs exactly ONE action, so
+;; column stepping uses explicit INCREMENT lines (as in the original).
+;;
+;; Exports (created in the Tally application / data folder):
+;;   Menu > Export Voucher (Accounting)  -> LedgerVoucher.xlsx
+;;   Menu > Export Voucher (Inventory)   -> InventoryVoucher.xlsx
+;;   Menu > Export Ledger Master         -> LedgerList.xlsx
+;; ============================================================================
+
+;; ------------------------------------------------------------------ Menu ----
+[#Menu: Gateway of Tally]
+
+    Add : Key Item : Before : @@locQuit : Export Ledger Master       : X : CALL : Export Ledger List
+    Add : Key Item : Before : @@locQuit : Export Voucher (Inventory) : X : CALL : Export Inventory Voucher
+    Add : Key Item : Before : @@locQuit : Export Voucher (Accounting): X : CALL : Export Ledger Voucher
+
+;; ================================================== FUNCTION: Ledger Voucher =
+;; One row per ledger entry of every accounting voucher.  Header on row 1.
+[Function: Export Ledger Voucher]
+
+    Variable : RowIndex : Number : 0
+    Variable : ColIndex : Number : 0
+
+    001 : Delete File : "LedgerVoucher.xlsx"
+    010 : OPEN FILE   : "LedgerVoucher.xlsx" : Excel : Write
+
+    ;; ---- header row -------------------------------------------------------
+    020 : INCREMENT   : RowIndex
+    021 : SET         : ColIndex : 1
+    022 : WRITE CELL  : ##RowIndex : ##ColIndex : "Date"
+    023 : INCREMENT   : ColIndex
+    024 : WRITE CELL  : ##RowIndex : ##ColIndex : "Effective Date"
+    025 : INCREMENT   : ColIndex
+    026 : WRITE CELL  : ##RowIndex : ##ColIndex : "GUID"
+    027 : INCREMENT   : ColIndex
+    028 : WRITE CELL  : ##RowIndex : ##ColIndex : "Master ID"
+    029 : INCREMENT   : ColIndex
+    030 : WRITE CELL  : ##RowIndex : ##ColIndex : "Alter ID"
+    031 : INCREMENT   : ColIndex
+    032 : WRITE CELL  : ##RowIndex : ##ColIndex : "Voucher Number"
+    033 : INCREMENT   : ColIndex
+    034 : WRITE CELL  : ##RowIndex : ##ColIndex : "Voucher Type"
+    035 : INCREMENT   : ColIndex
+    036 : WRITE CELL  : ##RowIndex : ##ColIndex : "Reference"
+    037 : INCREMENT   : ColIndex
+    038 : WRITE CELL  : ##RowIndex : ##ColIndex : "Reference Date"
+    039 : INCREMENT   : ColIndex
+    040 : WRITE CELL  : ##RowIndex : ##ColIndex : "Party Ledger Name"
+    041 : INCREMENT   : ColIndex
+    042 : WRITE CELL  : ##RowIndex : ##ColIndex : "Party GSTIN"
+    043 : INCREMENT   : ColIndex
+    044 : WRITE CELL  : ##RowIndex : ##ColIndex : "Place Of Supply"
+    045 : INCREMENT   : ColIndex
+    046 : WRITE CELL  : ##RowIndex : ##ColIndex : "Narration"
+    047 : INCREMENT   : ColIndex
+    048 : WRITE CELL  : ##RowIndex : ##ColIndex : "Cancelled"
+    049 : INCREMENT   : ColIndex
+    050 : WRITE CELL  : ##RowIndex : ##ColIndex : "Optional"
+    051 : INCREMENT   : ColIndex
+    052 : WRITE CELL  : ##RowIndex : ##ColIndex : "Ledger Name"
+    053 : INCREMENT   : ColIndex
+    054 : WRITE CELL  : ##RowIndex : ##ColIndex : "Amount"
+    055 : INCREMENT   : ColIndex
+    056 : WRITE CELL  : ##RowIndex : ##ColIndex : "Dr/Cr"
+
+    ;; ---- data rows --------------------------------------------------------
+    100 : WALK COLLECTION : LVoucher
+    110 :   INCREMENT   : RowIndex
+    111 :   SET         : ColIndex : 1
+    112 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Date
+    113 :   INCREMENT   : ColIndex
+    114 :   WRITE CELL  : ##RowIndex : ##ColIndex : $EffectiveDate
+    115 :   INCREMENT   : ColIndex
+    116 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Guid
+    117 :   INCREMENT   : ColIndex
+    118 :   WRITE CELL  : ##RowIndex : ##ColIndex : $MasterID
+    119 :   INCREMENT   : ColIndex
+    120 :   WRITE CELL  : ##RowIndex : ##ColIndex : $AlterID
+    121 :   INCREMENT   : ColIndex
+    122 :   WRITE CELL  : ##RowIndex : ##ColIndex : $VoucherNumber
+    123 :   INCREMENT   : ColIndex
+    124 :   WRITE CELL  : ##RowIndex : ##ColIndex : $VoucherTypeName
+    125 :   INCREMENT   : ColIndex
+    126 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Reference
+    127 :   INCREMENT   : ColIndex
+    128 :   WRITE CELL  : ##RowIndex : ##ColIndex : $ReferenceDate
+    129 :   INCREMENT   : ColIndex
+    130 :   WRITE CELL  : ##RowIndex : ##ColIndex : $PartyLedgerName
+    131 :   INCREMENT   : ColIndex
+    132 :   WRITE CELL  : ##RowIndex : ##ColIndex : $PartyGSTIN
+    133 :   INCREMENT   : ColIndex
+    134 :   WRITE CELL  : ##RowIndex : ##ColIndex : $PlaceOfSupply
+    135 :   INCREMENT   : ColIndex
+    136 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Narration
+    137 :   INCREMENT   : ColIndex
+    138 :   WRITE CELL  : ##RowIndex : ##ColIndex : $IsCancelled
+    139 :   INCREMENT   : ColIndex
+    140 :   WRITE CELL  : ##RowIndex : ##ColIndex : $IsOptional
+    141 :   INCREMENT   : ColIndex
+    142 :   WRITE CELL  : ##RowIndex : ##ColIndex : $LedgerName
+    143 :   INCREMENT   : ColIndex
+    144 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Amount
+    145 :   INCREMENT   : ColIndex
+    146 :   WRITE CELL  : ##RowIndex : ##ColIndex : if $IsDeemedPositive then "Dr" else "Cr"
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ================================================ FUNCTION: Inventory Voucher =
+;; One row per inventory (stock) entry of every inventory voucher.
+[Function: Export Inventory Voucher]
+
+    Variable : RowIndex : Number : 0
+    Variable : ColIndex : Number : 0
+
+    001 : Delete File : "InventoryVoucher.xlsx"
+    010 : OPEN FILE   : "InventoryVoucher.xlsx" : Excel : Write
+
+    020 : INCREMENT   : RowIndex
+    021 : SET         : ColIndex : 1
+    022 : WRITE CELL  : ##RowIndex : ##ColIndex : "Date"
+    023 : INCREMENT   : ColIndex
+    024 : WRITE CELL  : ##RowIndex : ##ColIndex : "GUID"
+    025 : INCREMENT   : ColIndex
+    026 : WRITE CELL  : ##RowIndex : ##ColIndex : "Voucher Number"
+    027 : INCREMENT   : ColIndex
+    028 : WRITE CELL  : ##RowIndex : ##ColIndex : "Voucher Type"
+    029 : INCREMENT   : ColIndex
+    030 : WRITE CELL  : ##RowIndex : ##ColIndex : "Party Name"
+    031 : INCREMENT   : ColIndex
+    032 : WRITE CELL  : ##RowIndex : ##ColIndex : "Stock Item"
+    033 : INCREMENT   : ColIndex
+    034 : WRITE CELL  : ##RowIndex : ##ColIndex : "Billed Qty"
+    035 : INCREMENT   : ColIndex
+    036 : WRITE CELL  : ##RowIndex : ##ColIndex : "Actual Qty"
+    037 : INCREMENT   : ColIndex
+    038 : WRITE CELL  : ##RowIndex : ##ColIndex : "Rate"
+    039 : INCREMENT   : ColIndex
+    040 : WRITE CELL  : ##RowIndex : ##ColIndex : "Amount"
+
+    100 : WALK COLLECTION : SVoucher
+    110 :   INCREMENT   : RowIndex
+    111 :   SET         : ColIndex : 1
+    112 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Date
+    113 :   INCREMENT   : ColIndex
+    114 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Guid
+    115 :   INCREMENT   : ColIndex
+    116 :   WRITE CELL  : ##RowIndex : ##ColIndex : $VoucherNumber
+    117 :   INCREMENT   : ColIndex
+    118 :   WRITE CELL  : ##RowIndex : ##ColIndex : $VoucherTypeName
+    119 :   INCREMENT   : ColIndex
+    120 :   WRITE CELL  : ##RowIndex : ##ColIndex : $PartyLedgerName
+    121 :   INCREMENT   : ColIndex
+    122 :   WRITE CELL  : ##RowIndex : ##ColIndex : $StockItemName
+    123 :   INCREMENT   : ColIndex
+    124 :   WRITE CELL  : ##RowIndex : ##ColIndex : $BilledQty
+    125 :   INCREMENT   : ColIndex
+    126 :   WRITE CELL  : ##RowIndex : ##ColIndex : $ActualQty
+    127 :   INCREMENT   : ColIndex
+    128 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Rate
+    129 :   INCREMENT   : ColIndex
+    130 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Amount
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; =================================================== FUNCTION: Ledger Master =
+[Function: Export Ledger List]
+
+    Variable : RowIndex : Number : 0
+    Variable : ColIndex : Number : 0
+
+    001 : Delete File : "LedgerList.xlsx"
+    010 : OPEN FILE   : "LedgerList.xlsx" : Excel : Write
+
+    020 : INCREMENT   : RowIndex
+    021 : SET         : ColIndex : 1
+    022 : WRITE CELL  : ##RowIndex : ##ColIndex : "Ledger Name"
+    023 : INCREMENT   : ColIndex
+    024 : WRITE CELL  : ##RowIndex : ##ColIndex : "Parent Group"
+    025 : INCREMENT   : ColIndex
+    026 : WRITE CELL  : ##RowIndex : ##ColIndex : "Primary Group"
+    027 : INCREMENT   : ColIndex
+    028 : WRITE CELL  : ##RowIndex : ##ColIndex : "Opening Balance"
+    029 : INCREMENT   : ColIndex
+    030 : WRITE CELL  : ##RowIndex : ##ColIndex : "Closing Balance"
+    031 : INCREMENT   : ColIndex
+    032 : WRITE CELL  : ##RowIndex : ##ColIndex : "Income Tax / PAN"
+    033 : INCREMENT   : ColIndex
+    034 : WRITE CELL  : ##RowIndex : ##ColIndex : "GSTIN"
+    035 : INCREMENT   : ColIndex
+    036 : WRITE CELL  : ##RowIndex : ##ColIndex : "Cash In Flow"
+    037 : INCREMENT   : ColIndex
+    038 : WRITE CELL  : ##RowIndex : ##ColIndex : "Cash Out Flow"
+
+    100 : WALK COLLECTION : TLedger
+    110 :   INCREMENT   : RowIndex
+    111 :   SET         : ColIndex : 1
+    112 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Name
+    113 :   INCREMENT   : ColIndex
+    114 :   WRITE CELL  : ##RowIndex : ##ColIndex : $Parent
+    115 :   INCREMENT   : ColIndex
+    116 :   WRITE CELL  : ##RowIndex : ##ColIndex : $_PrimaryGroup
+    117 :   INCREMENT   : ColIndex
+    118 :   WRITE CELL  : ##RowIndex : ##ColIndex : $OpeningBalance
+    119 :   INCREMENT   : ColIndex
+    120 :   WRITE CELL  : ##RowIndex : ##ColIndex : $_ClosingBalance
+    121 :   INCREMENT   : ColIndex
+    122 :   WRITE CELL  : ##RowIndex : ##ColIndex : $IncomeTaxNumber
+    123 :   INCREMENT   : ColIndex
+    124 :   WRITE CELL  : ##RowIndex : ##ColIndex : $PartyGSTIN
+    125 :   INCREMENT   : ColIndex
+    126 :   WRITE CELL  : ##RowIndex : ##ColIndex : $_CashInFlow
+    127 :   INCREMENT   : ColIndex
+    128 :   WRITE CELL  : ##RowIndex : ##ColIndex : $_CashOutFlow
+    190 : END WALK
+    199 : CLOSE TARGET FILE
+
+;; ============================================================ COLLECTIONS ====
+;; TVoucher: base voucher collection. No "Is ODBC Table" (only WALKed, not
+;; exposed over ODBC) -> avoids the ODBC index build cost.
+[Collection: TVoucher]
+    Type  : Voucher
+    Fetch : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch : Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch : Narration, IsCancelled, IsOptional
+
+;; LVoucher: exploded to one line per accounting ledger entry.
+[Collection: LVoucher]
+    Source Collection : TVoucher
+    Walk  : All Ledger Entries
+    Fetch : Date, EffectiveDate, Guid, MasterID, AlterID, VoucherNumber, VoucherTypeName
+    Fetch : Reference, ReferenceDate, PartyLedgerName, PartyGSTIN, PlaceOfSupply
+    Fetch : Narration, IsCancelled, IsOptional
+    Fetch : LedgerName, Amount, IsDeemedPositive
+
+;; SVoucher: exploded to one line per inventory entry.
+[Collection: SVoucher]
+    Source Collection : TVoucher
+    Walk  : All Inventory Entries
+    Fetch : Date, Guid, VoucherNumber, VoucherTypeName, PartyLedgerName
+    Fetch : StockItemName, BilledQty, ActualQty, Rate, Amount
+
+;; TLedger: ledger master.
+[Collection: TLedger]
+    Type  : Ledger
+    Fetch : Name, Parent, _PrimaryGroup, OpeningBalance, _ClosingBalance
+    Fetch : IncomeTaxNumber, PartyGSTIN, _CashInFlow, _CashOutFlow
