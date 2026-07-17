@@ -28,10 +28,12 @@ untouched in `original/`.
 
 **Tally.ERP 9**: `F12 → Product & Features → F4 (Manage Local TDLs)` → add the path.
 
-> **Create the folder `C:\TallyExport` before your first export.** All files are
-> written there. (A bare filename would land in Tally's own program folder,
-> which Windows protects — the file then silently disappears into a VirtualStore
-> copy. An explicit folder avoids that.)
+> **Create the folder `E:\Export` before your first export.** All files are
+> written there, each with a timestamp, e.g. `LedgerVoucher_20260717_14-32-05.csv`
+> — so a new export never overwrites an old one.
+> (A bare filename would land in Tally's own program folder, which Windows
+> protects — the file then silently disappears into a VirtualStore copy. An
+> explicit folder avoids that.)
 > To use a different folder, edit the `DDExportPath` default at the top of the
 > `.tdl` and keep the trailing backslash:
 > `[Variable: DDExportPath]  Default : "D:\MyExports\"`

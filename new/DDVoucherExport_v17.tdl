@@ -69,12 +69,30 @@
 ;; appear or is hidden away in a VirtualStore copy. So we always write to an
 ;; explicit, user-writable folder.
 ;;
-;; >>> CREATE THIS FOLDER FIRST (once):  C:\TallyExport
+;; >>> CREATE THIS FOLDER FIRST (once):  E:\Export
 ;; >>> To use a different folder, edit the Default line below. Keep the
 ;;     trailing backslash.
 [Variable: DDExportPath]
     Type    : String
-    Default : "C:\TallyExport\"
+    Default : "E:\Export\"
+
+;; ---------------------------------------------------- TIMESTAMP -------------
+;; Returns  YYYYMMDD_HH-MM-SS  for unique filenames (never overwrite a previous
+;; export). NOTE: Windows filenames cannot contain ':' , and $$MachineTime
+;; returns HH:MM:SS - so the colons/spaces are stripped here. Every step is a
+;; single-level call (nested calls have proved fragile to parse).
+[Function: DDStamp]
+    Returns  : String
+    Variable : md : Date
+    Variable : mt : String
+    Variable : ds : String
+    Variable : ts : String
+    10 : SET : md : $$MachineDate
+    20 : SET : ds : $$String:##md:UniversalDate
+    30 : SET : mt : $$MachineTime
+    40 : SET : ts : $$StringFindAndReplace:##mt:":":"-"
+    50 : SET : ts : $$StringFindAndReplace:##ts:" ":""
+    60 : RETURN : ##ds + "_" + ##ts
 
 [Function: CsvEsc]
     Parameter : pVal : String
@@ -145,9 +163,11 @@
     Variable : LGstin : String : ""
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "LedgerVoucher.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "LedgerVoucher_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
 
@@ -198,9 +218,11 @@
     Variable : MaxAlt : Number : 0
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "LedgerVoucher.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "LedgerVoucher_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,EffectiveDate,GUID,MasterID,AlterID,VoucherNumber,VoucherType,IsInvoice,EnteredBy,Reference,ReferenceDate,PartyLedger,PartyGSTIN,PlaceOfSupply,Cancelled,Optional,Narration,LedgerName,LedgerGroup,GSTDutyHead,LedgerGSTIN,Amount,DrCr,BillRefs,CostCentres,BankTxnType,InstrumentNo,InstrumentDate,BankName"
 
@@ -260,9 +282,11 @@
     Variable : Uom  : String : ""
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "InventoryVoucher.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "InventoryVoucher_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,MasterID,AlterID,VoucherNumber,VoucherType,PartyLedger,StockItem,HSNCode,HSNDesc,GSTRate,Taxability,BaseUnit,BilledQty,ActualQty,Rate,Amount,AddlAmount,Discount,Godown,OrderNo,OrderDueDate,TrackingNo,Batches"
 
@@ -306,9 +330,11 @@
     Variable : Line : String : ""
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "Billwise.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "Billwise_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,BillRef,BillType,BillAmount,DrCr,CreditPeriod,BillDate"
 
@@ -335,9 +361,11 @@
     Variable : Line : String : ""
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "LedgerList.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "LedgerList_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Name,Parent,PrimaryGroup,IsBillWise,IsCostCentre,GSTIN,GSTRegType,GSTSupplyType,PAN,Address,State,Country,Pincode,Contact,Phone,Mobile,Email,BankName,BankAcNo,IFSC,CreditPeriod,OpeningBalance,ClosingBalance,CashInFlow,CashOutFlow"
 
@@ -377,9 +405,11 @@
     Variable : Line : String : ""
 
     Variable : F : String
+    Variable : S : String
 
-    001 : SET : F : ##DDExportPath + "CostCentre.csv"
-    002 : Delete File : ##F
+    001 : SET : S : $$DDStamp
+    002 : SET : F : ##DDExportPath + "CostCentre_" + ##S + ".csv"
+    003 : Delete File : ##F
     010 : OPEN FILE       : ##F : Text : Write : ASCII
     020 : WRITE FILE LINE : "Date,GUID,VoucherNumber,VoucherType,PartyLedger,LedgerName,CostCategory,CostCentre,Amount,DrCr"
 
