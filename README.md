@@ -1,5 +1,7 @@
 # Tally TDL Voucher / Ledger Export
 
+**🌐 Download page (non-technical install guide): https://dhruvdua88.github.io/tally-tdl-export/**
+
 Fast, complete export of vouchers, ledgers, inventory, bills, cost-centres and
 masters from **Tally.ERP 9 / TallyPrime** — entirely in **TDL** (Tally
 Definition Language). No external tools, no ODBC, no scripting.
