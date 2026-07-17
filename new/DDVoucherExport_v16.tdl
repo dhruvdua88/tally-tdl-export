@@ -60,16 +60,15 @@
 [Function: CsvEsc]
     Parameter : pVal : String
     Returns   : String
-    Variable  : q  : String
-    Variable  : qq : String
-    Variable  : t  : String
-    ;; NOTE: TDL has no doubled-quote escape inside a string literal. Build the
-    ;; quote character with $$StrByCharCode:34 instead (a literal """" is a
-    ;; "Bad formula" parse error).
-    10 : SET : q  : $$StrByCharCode:34
-    20 : SET : qq : ##q + ##q
-    30 : SET : t  : $$StringFindAndReplace:##pVal:##q:##qq
-    40 : RETURN : ##q + ##t + ##q
+    ;; CSV-safety WITHOUT needing a quote character.
+    ;; History: v2-v17 wrapped values in quotes and escaped an embedded quote as
+    ;; "" . TDL has NO doubled-quote escape inside a string literal, so that was
+    ;; a "Cannot understand. Bad formula!" parse error. Building the quote with
+    ;; $$StrByCharCode:34 also proved unreliable across builds.
+    ;; So: emit values UNQUOTED and neutralise the delimiter instead - any comma
+    ;; inside a name/narration becomes a semicolon. Plain string literals only,
+    ;; nothing exotic to misparse.
+    10 : RETURN : $$StringFindAndReplace:##pVal:",":";"
 
 ;; ============================================ FUNCTION 1: Accounting Vouchers =
 [Function: Export Voucher CSV]
