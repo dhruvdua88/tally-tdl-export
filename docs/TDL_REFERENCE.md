@@ -44,5 +44,17 @@ Period: `##SVFromDate`/`##SVToDate` (report active period bounds the voucher col
 ## Procedural keywords
 `SET` `LOG`(calc.log) `IF/ELSE/END IF` `WALK COLLECTION/END WALK` `INCREMENT/DECREMENT` `OPEN FILE : "f" : Text|Excel : Read|Write : ASCII|Unicode` `WRITE CELL`/`WRITE ROW`/`WRITE FILE LINE` `CLOSE TARGET FILE` `RETURN`. One action per numbered line.
 
+## Gotchas CONFIRMED at runtime in Tally (not theory)
+- **No doubled-quote escape inside a string literal.** Writing `""""` to mean one `"` fails with
+  **`Cannot understand. Bad formula!`**. There is no `\"` either. To emit a quote character, build it:
+  `SET : q : $$StrByCharCode:34` and concatenate `##q`. (This broke `CsvEsc` in v2–v17; fixed by
+  staging `q`/`qq` vars.)
+- **Function names invoked with `$$` must have no spaces.** `[Function: Ldr T]` can't be called as
+  `$$Ldr T:x`. Spaced names are fine only for `CALL : My Function`.
+- **Line labels sort numerically, not textually.** Inserting `1271` between `127` and `128` runs it
+  after `190`. There is no integer between 127 and 128 — renumber or stage earlier in the block.
+- Precaution (unconfirmed): when passing a call as an argument to a user function, prefer staging it
+  in a variable or using a zero-arg wrapper, so the `:` splitting can't be misread.
+
 ## Import vs export gotcha
 `All Ledger Entries` for reading/export; `Ledger Entries` for create/import (else "Voucher Totals do not match").

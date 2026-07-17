@@ -48,7 +48,16 @@
 [Function: CsvEsc]
     Parameter : pVal : String
     Returns   : String
-    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+    Variable  : q  : String
+    Variable  : qq : String
+    Variable  : t  : String
+    ;; NOTE: TDL has no doubled-quote escape inside a string literal. Build the
+    ;; quote character with $$StrByCharCode:34 instead (a literal """" is a
+    ;; "Bad formula" parse error).
+    10 : SET : q  : $$StrByCharCode:34
+    20 : SET : qq : ##q + ##q
+    30 : SET : t  : $$StringFindAndReplace:##pVal:##q:##qq
+    40 : RETURN : ##q + ##t + ##q
 
 ;; ============================================ FUNCTION 1: Accounting Vouchers =
 [Function: Export Voucher CSV]

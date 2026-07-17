@@ -65,7 +65,63 @@
 [Function: CsvEsc]
     Parameter : pVal : String
     Returns   : String
-    10 : RETURN : """" + $$StringFindAndReplace:##pVal:"""":"""""" + """"
+    Variable  : q  : String
+    Variable  : qq : String
+    Variable  : t  : String
+    ;; NOTE: TDL has no doubled-quote escape inside a string literal. Build the
+    ;; quote character with $$StrByCharCode:34 instead (a literal """" is a
+    ;; "Bad formula" parse error).
+    10 : SET : q  : $$StrByCharCode:34
+    20 : SET : qq : ##q + ##q
+    30 : SET : t  : $$StringFindAndReplace:##pVal:##q:##qq
+    40 : RETURN : ##q + ##t + ##q
+
+;; ---------------- safe-call helpers ----------------------------------------
+;; TDL parses a multi-argument $$call passed AS an argument by splitting on ':',
+;; so  $$CsvEsc:$$FLBillRefs  is read as CsvEsc(3 args) and
+;; fails with "Bad formula". Same for $$NumS:$X. Fix: keep every
+;; nested call ZERO-argument (below) or stage it in a variable first.
+
+;; number -> plain string (staged; no nested call in one expression)
+[Function: NumS]
+    Parameter : v : String
+    Returns   : String
+    Variable  : n : Number
+    10 : SET : n : $$Number:##v
+    20 : RETURN : $$String:##n
+
+;; zero-arg $$FullList wrappers: called as $$FLxxx (no colon => one clean arg)
+[Function: FLBillRefs]
+    Returns : String
+    10 : RETURN : $$FullList:BillAllocations:$Name
+
+[Function: FLCostCentres]
+    Returns : String
+    10 : RETURN : $$FullList:CostCentreAllocations:$Name
+
+[Function: FLBankTxnType]
+    Returns : String
+    10 : RETURN : $$FullList:BankAllocations:$TransactionType
+
+[Function: FLBankInstNo]
+    Returns : String
+    10 : RETURN : $$FullList:BankAllocations:$InstrumentNumber
+
+[Function: FLBankInstDate]
+    Returns : String
+    10 : RETURN : $$FullList:BankAllocations:$InstrumentDate
+
+[Function: FLBankName]
+    Returns : String
+    10 : RETURN : $$FullList:BankAllocations:$BankName
+
+[Function: FLBatches]
+    Returns : String
+    10 : RETURN : $$FullList:BatchAllocations:$BatchName
+
+[Function: FLAddress]
+    Returns : String
+    10 : RETURN : $$FullList:Address:$Address
 
 ;; ============================================ FUNCTION 1: Accounting Vouchers =
 [Function: Export Voucher CSV]
@@ -104,14 +160,14 @@
     128 :   SET : Line : ##Line + $$CsvEsc:##LGroup + ","
     129 :   SET : Line : ##Line + $$CsvEsc:##LDuty + ","
     130 :   SET : Line : ##Line + $$CsvEsc:##LGstin + ","
-    131 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    131 :   SET : Line : ##Line + $$NumS:$Amount + ","
     132 :   SET : Line : ##Line + (if $IsDeemedPositive then "Dr" else "Cr") + ","
-    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BillAllocations:$Name + ","
-    134 :   SET : Line : ##Line + $$CsvEsc:$$FullList:CostCentreAllocations:$Name + ","
-    135 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$TransactionType + ","
-    136 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentNumber + ","
-    137 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentDate + ","
-    138 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$BankName
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FLBillRefs + ","
+    134 :   SET : Line : ##Line + $$CsvEsc:$$FLCostCentres + ","
+    135 :   SET : Line : ##Line + $$CsvEsc:$$FLBankTxnType + ","
+    136 :   SET : Line : ##Line + $$CsvEsc:$$FLBankInstNo + ","
+    137 :   SET : Line : ##Line + $$CsvEsc:$$FLBankInstDate + ","
+    138 :   SET : Line : ##Line + $$CsvEsc:$$FLBankName
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
     199 : CLOSE TARGET FILE
@@ -157,14 +213,14 @@
     128 :   SET : Line : ##Line + $$CsvEsc:##LGroup + ","
     129 :   SET : Line : ##Line + $$CsvEsc:##LDuty + ","
     130 :   SET : Line : ##Line + $$CsvEsc:##LGstin + ","
-    131 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    131 :   SET : Line : ##Line + $$NumS:$Amount + ","
     132 :   SET : Line : ##Line + (if $IsDeemedPositive then "Dr" else "Cr") + ","
-    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BillAllocations:$Name + ","
-    134 :   SET : Line : ##Line + $$CsvEsc:$$FullList:CostCentreAllocations:$Name + ","
-    135 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$TransactionType + ","
-    136 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentNumber + ","
-    137 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$InstrumentDate + ","
-    138 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BankAllocations:$BankName
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FLBillRefs + ","
+    134 :   SET : Line : ##Line + $$CsvEsc:$$FLCostCentres + ","
+    135 :   SET : Line : ##Line + $$CsvEsc:$$FLBankTxnType + ","
+    136 :   SET : Line : ##Line + $$CsvEsc:$$FLBankInstNo + ","
+    137 :   SET : Line : ##Line + $$CsvEsc:$$FLBankInstDate + ","
+    138 :   SET : Line : ##Line + $$CsvEsc:$$FLBankName
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
     199 : CLOSE TARGET FILE
@@ -206,17 +262,17 @@
     120 :   SET : Line : ##Line + $$String:##Rate + ","
     121 :   SET : Line : ##Line + $$CsvEsc:##Taxb + ","
     122 :   SET : Line : ##Line + $$CsvEsc:##Uom + ","
-    123 :   SET : Line : ##Line + $$String:$$Number:$BilledQty + ","
-    124 :   SET : Line : ##Line + $$String:$$Number:$ActualQty + ","
-    125 :   SET : Line : ##Line + $$String:$$Number:$Rate + ","
-    126 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
-    127 :   SET : Line : ##Line + $$String:$$Number:$AddlAmount + ","
-    128 :   SET : Line : ##Line + $$String:$$Number:$Discount + ","
+    123 :   SET : Line : ##Line + $$NumS:$BilledQty + ","
+    124 :   SET : Line : ##Line + $$NumS:$ActualQty + ","
+    125 :   SET : Line : ##Line + $$NumS:$Rate + ","
+    126 :   SET : Line : ##Line + $$NumS:$Amount + ","
+    127 :   SET : Line : ##Line + $$NumS:$AddlAmount + ","
+    128 :   SET : Line : ##Line + $$NumS:$Discount + ","
     129 :   SET : Line : ##Line + $$CsvEsc:$GodownName + ","
     130 :   SET : Line : ##Line + $$CsvEsc:$OrderNo + ","
     131 :   SET : Line : ##Line + $$String:$OrderDueDate:UniversalDate + ","
     132 :   SET : Line : ##Line + $$CsvEsc:$TrackingNumber + ","
-    133 :   SET : Line : ##Line + $$CsvEsc:$$FullList:BatchAllocations:$BatchName
+    133 :   SET : Line : ##Line + $$CsvEsc:$$FLBatches
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
     199 : CLOSE TARGET FILE
@@ -239,9 +295,9 @@
     115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
     116 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
     117 :   SET : Line : ##Line + $$CsvEsc:$BillType + ","
-    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    118 :   SET : Line : ##Line + $$NumS:$Amount + ","
     119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr") + ","
-    120 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
+    120 :   SET : Line : ##Line + $$NumS:$BillCreditPeriod + ","
     121 :   SET : Line : ##Line + $$String:$BillDate:UniversalDate
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
@@ -266,7 +322,7 @@
     116 :   SET : Line : ##Line + $$CsvEsc:$GSTRegistrationType + ","
     117 :   SET : Line : ##Line + $$CsvEsc:$GSTTypeOfSupply + ","
     118 :   SET : Line : ##Line + $$CsvEsc:$IncomeTaxNumber + ","
-    119 :   SET : Line : ##Line + $$CsvEsc:$$FullList:Address:$Address + ","
+    119 :   SET : Line : ##Line + $$CsvEsc:$$FLAddress + ","
     120 :   SET : Line : ##Line + $$CsvEsc:$LedStateName + ","
     121 :   SET : Line : ##Line + $$CsvEsc:$CountryName + ","
     122 :   SET : Line : ##Line + $$CsvEsc:$PinCode + ","
@@ -277,11 +333,11 @@
     127 :   SET : Line : ##Line + $$CsvEsc:$BankName + ","
     128 :   SET : Line : ##Line + $$CsvEsc:$BankAccountNumber + ","
     129 :   SET : Line : ##Line + $$CsvEsc:$IFSCode + ","
-    130 :   SET : Line : ##Line + $$String:$$Number:$BillCreditPeriod + ","
-    131 :   SET : Line : ##Line + $$String:$$Number:$OpeningBalance + ","
-    132 :   SET : Line : ##Line + $$String:$$Number:$_ClosingBalance + ","
-    133 :   SET : Line : ##Line + $$String:$$Number:$_CashInFlow + ","
-    134 :   SET : Line : ##Line + $$String:$$Number:$_CashOutFlow
+    130 :   SET : Line : ##Line + $$NumS:$BillCreditPeriod + ","
+    131 :   SET : Line : ##Line + $$NumS:$OpeningBalance + ","
+    132 :   SET : Line : ##Line + $$NumS:$_ClosingBalance + ","
+    133 :   SET : Line : ##Line + $$NumS:$_CashInFlow + ","
+    134 :   SET : Line : ##Line + $$NumS:$_CashOutFlow
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
     199 : CLOSE TARGET FILE
@@ -304,7 +360,7 @@
     115 :   SET : Line : ##Line + $$CsvEsc:$LedgerName + ","
     116 :   SET : Line : ##Line + $$CsvEsc:$Category + ","
     117 :   SET : Line : ##Line + $$CsvEsc:$Name + ","
-    118 :   SET : Line : ##Line + $$String:$$Number:$Amount + ","
+    118 :   SET : Line : ##Line + $$NumS:$Amount + ","
     119 :   SET : Line : ##Line + (if $$IsDebit:$Amount then "Dr" else "Cr")
     140 :   WRITE FILE LINE : ##Line
     190 : END WALK
